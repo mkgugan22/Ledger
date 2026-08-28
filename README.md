@@ -1,81 +1,142 @@
 # Ledger
 
-A household expense and savings tracker — log income, needs, savings, and
-spending by month, and track what your savings instruments (SIP, gold, etc.)
-are worth over time. Data lives in MongoDB, behind a small API.
+Ledger is a household money tracker for recording monthly income, needs,
+savings, spending, investment contributions, and portfolio valuations. It has
+a React/Vite frontend and an Express/Mongoose API backed by MongoDB.
 
-```
+## What the app includes
+
+- **Dashboard** — monthly totals for income, needs, savings, spending, and
+  money in hand, plus category and valuation trend charts.
+- **Add Entry** — record an income, need, saving, or spending entry with a
+  type, amount, month, and optional note.
+- **All Entries** — filter entries by month and mode, edit them, or remove
+  them.
+- **Savings Tracker** — record one valuation per instrument and month, view
+  the history chart, and delete obsolete valuations.
+- **SIP Growth** — manage funds and contributions, compare invested value with
+  the latest estimate, review gains, and explore illustrative 8%, 10%, and 12%
+  projection scenarios. The projection is not a return guarantee.
+- **Fund research** — search mutual-fund schemes and retrieve NAV history from
+  the server-side market-data proxy.
+- **Authentication** — register and sign in with a bcrypt-hashed password;
+  sessions use a seven-day, HTTP-only JWT cookie.
+- **Themes** — switch between light and dark mode. Tables, forms, charts,
+  navigation, placeholders, and tooltips use theme-aware contrast colors.
+- **Responsive layout** — the sidebar and mobile navigation adapt to smaller
+  screens.
+
+## Project structure
+
+```text
 Ledger/
-├── client/     # React + Vite + React-Bootstrap frontend
-└── server/     # Express + Mongoose API, backed by MongoDB
+├── client/                 # React 19 + Vite + React-Bootstrap frontend
+│   ├── public/              # Static assets
+│   └── src/
+│       ├── components/      # Auth, layout, dashboard, entries, savings, SIP
+│       └── lib/             # API client, constants, and formatting helpers
+├── server/                 # Express + Mongoose API
+│   └── src/
+│       ├── middleware/      # JWT session guard
+│       ├── models/          # User, Transaction, Valuation, Investment
+│       └── routes/          # Auth, transactions, valuations, investments,
+│                            # and mutual-fund market routes
+└── package.json             # Workspace scripts
 ```
 
-See `client/README.md` and `server/README.md` for details on each half.
+## Data model
 
-## Quick start (both apps together)
+Every user-owned record is scoped with a `user` reference:
 
-From the repo root:
+- `User`: name, normalized email, and bcrypt password hash.
+- `Transaction`: mode (`Income`, `Needs`, `Savings`, or `Spending`), type,
+  amount, `YYYY-MM` month, and optional note.
+- `Valuation`: `YYYY-MM` month, instrument name, and value. A compound unique
+  index prevents duplicate instrument/month records for one user.
+- `Investment`: fund, type (`SIP` or `Additional`), invested amount, current
+  estimate, date, optional monthly contribution, NAV, and source.
+
+Existing records created before authentication can be claimed automatically on
+the first authenticated request when the database contains exactly one user.
+This preserves legacy July/August data without exposing it across accounts.
+
+## API routes
+
+The server is mounted at `/api`:
+
+| Area | Routes | Purpose |
+| --- | --- | --- |
+| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` | Account and session management |
+| Transactions | `GET/POST /transactions`, `PUT/DELETE /transactions/:id` | Monthly ledger entries |
+| Valuations | `GET/POST /valuations`, `DELETE /valuations/:id` | Instrument valuations |
+| Investments | `GET/POST /investments`, `PUT/DELETE /investments/:id` | SIP and fund records |
+| Market | `GET /market/search?q=...`, `GET /market/:schemeCode` | Mutual-fund scheme and NAV lookup |
+| Health | `GET /health` | Server availability check |
+
+## Local development
+
+From the repository root:
 
 ```bash
-npm install                 # installs "concurrently"
-npm run install:all         # installs client + server dependencies
+npm install
+npm run install:all
 ```
 
-Then set up your environment files:
+Create environment files from the safe templates:
 
 ```bash
-cp server/.env.example server/.env   # fill in MONGODB_URI
-cp client/.env.example client/.env   # defaults to http://localhost:5000/api
+cp server/.env.example server/.env
+cp client/.env.example client/.env
 ```
 
-Run both apps at once:
+Set the real MongoDB connection string and a long random JWT secret only in
+`server/.env`. Set `VITE_API_URL` in `client/.env` if the API is not running at
+`http://localhost:5000/api`.
+
+Run both halves together:
 
 ```bash
 npm run dev
 ```
 
-- Client: `http://localhost:5173`
-- Server: `http://localhost:5000`
+The frontend runs at `http://localhost:5173` and the API at
+`http://localhost:5000`.
 
-Or run them separately in two terminals: `npm run dev:server` and
-`npm run dev:client`.
+Useful individual commands:
 
-## Deploying
+```bash
+npm run dev:client
+npm run dev:server
+npm run build:client
+npm --prefix client run lint
+npm --prefix server run migrate:indexes
+```
 
-- **Client**: `npm run build:client` produces `client/dist` — deploy that as
-  a static site (Vercel, Netlify, GitHub Pages, etc). Set `VITE_API_URL` at
-  build time to point at your deployed server.
-- **Server**: deploy `server/` to any Node host (Render, Railway, Fly.io,
-  etc). Set `MONGODB_URI`, `PORT`, and `CLIENT_ORIGIN` as environment
-  variables there — don't rely on a committed `.env` file, since it isn't
-  committed at all.
+## Production deployment
 
-## A note on the database credential
+This repository is intentionally split into two deployables:
 
-Never commit a real `MONGODB_URI` to this repo. Both `client/.env` and
-`server/.env` are gitignored for exactly this reason — only the `.env.example`
-files (with placeholders) are meant to be tracked. If your real connection
-string has ever been shared outside your own `.env` file, rotate that
-database user's password in MongoDB Atlas.
+1. **Frontend:** build `client/` with `npm run build:client` and publish
+   `client/dist` as a static site. The build-time variable `VITE_API_URL` must
+   point to the public API, for example `https://api.example.com/api`.
+2. **API:** run `server/` on a Node-capable host with `MONGODB_URI`, `PORT`,
+   `CLIENT_ORIGIN`, `JWT_SECRET`, and `NODE_ENV=production` configured there.
 
-## Authentication and SIP growth
+Netlify hosts the static frontend. Do not put `MONGODB_URI` or `JWT_SECRET` in
+the frontend build; Vite variables are visible to browser users. Netlify only
+needs the public `VITE_API_URL` value for this architecture.
 
-The app now requires an account. Passwords are stored as bcrypt hashes and the
-session is an HTTP-only, seven-day cookie signed with `JWT_SECRET`. Copy
-`server/.env.example` to `server/.env` and set a long random `JWT_SECRET`.
+## Security and repository hygiene
 
-The `/sip-growth` page loads each signed-in user's investments from MongoDB and
-displays NAV-based estimates. Scenario projections are explicitly illustrative
-and are not guaranteed returns.
+- Real `.env` files are ignored and must never be committed.
+- `node_modules`, build output, and generated work directories are ignored.
+- `.env.example` files contain placeholders only.
+- Passwords are never stored in plaintext.
+- API routes require the signed-in user's session and query only that user's
+  records.
+- If a database password or JWT secret has ever been shared outside its secret
+  store, rotate it before production deployment.
 
-Investment, transaction, and valuation records are scoped to the signed-in
-user. Existing MongoDB databases should recreate the valuation index as a
-compound `{ user, month, instrument }` unique index (drop the old
-`month_1_instrument_1` index once during migration if it exists).
-Run `npm --prefix server run migrate:indexes` after installing dependencies to
-apply that index migration automatically.
+## License
 
-On the first authenticated request, if the database still has exactly one
-user, records created before authentication are automatically backfilled to
-that user. This makes existing July/August transactions and valuations visible
-without exposing them once additional accounts are created.
+This project is provided for personal use and experimentation.
