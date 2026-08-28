@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownRight, ArrowUpRight, Plus, RefreshCw, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, TrendingUp } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import { createInvestment } from "../../lib/api.js";
 import { fmtINR } from "../../lib/format.js";
@@ -49,10 +49,14 @@ function buildFundStatus(rows) {
   });
 }
 
+const HISTORY_PAGE_SIZE = 8;
+
 export default function SipGrowth({ investments = [], onInvestmentAdded }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "" });
   const [notice, setNotice] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
   const rows = investments;
 
   const fundStatus = useMemo(() => buildFundStatus(rows), [rows]);
@@ -66,6 +70,22 @@ export default function SipGrowth({ investments = [], onInvestmentAdded }) {
   const monthly = fundStatus.reduce((sum, f) => sum + f.monthly, 0);
   const chart = [0, 1, 2, 3, 4, 5].map((year) => ({ year: `${year}Y`, invested: Math.round(totals.invested + monthly * year * 12), value: projection(monthly, totals.current, 10, year) }));
   const scenarios = [8, 10, 12].map((rate) => ({ rate, one: projection(monthly, totals.current, rate, 1), three: projection(monthly, totals.current, rate, 3), five: projection(monthly, totals.current, rate, 5) }));
+
+  // Sort newest first so pagination surfaces recent activity by default.
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => (b.date || "").localeCompare(a.date || "")), [rows]);
+  const filteredHistory = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return sortedRows;
+    return sortedRows.filter((item) => item.fund?.toLowerCase().includes(q));
+  }, [sortedRows, historySearch]);
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
+  const historyPageClamped = Math.min(historyPage, historyTotalPages);
+  const pagedHistory = filteredHistory.slice((historyPageClamped - 1) * HISTORY_PAGE_SIZE, historyPageClamped * HISTORY_PAGE_SIZE);
+
+  function onHistorySearchChange(value) {
+    setHistorySearch(value);
+    setHistoryPage(1);
+  }
 
   async function addInvestment(event) {
     event.preventDefault();
@@ -148,7 +168,68 @@ export default function SipGrowth({ investments = [], onInvestmentAdded }) {
         </Card.Body>
       </Card>
 
-      <Card className="lg-card"><Card.Body><div className="font-serif mb-3">Fund-wise allocation and history</div><div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Fund</th><th>Type</th><th>Started / date</th><th className="text-end">Invested</th><th className="text-end">Current estimate</th><th className="text-end">Gain</th></tr></thead><tbody>{rows.map((item) => { const itemGain = Number(item.currentValue || item.current || 0) - Number(item.invested || item.amount || 0); return <tr key={item.id || item._id || item.fund + item.date + item.type}><td><div className="fw-semibold">{item.fund}</div><small className="text-secondary">{item.monthly ? `₹${fmtINR(item.monthly)}/month · ${item.source}` : item.source}</small></td><td><span className="badge text-bg-light">{item.type}</span></td><td>{item.started || item.date}</td><td className="text-end font-mono">₹{fmtINR(item.invested || item.amount)}</td><td className="text-end font-mono">₹{fmtINR(item.currentValue || item.current || item.amount)}</td><td className={`text-end font-mono ${itemGain >= 0 ? "text-success" : "text-danger"}`}>{itemGain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(itemGain))}</td></tr>; })}</tbody></Table></div></Card.Body></Card>
+      <Card className="lg-card">
+        <Card.Body>
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div className="font-serif">Fund-wise allocation and history</div>
+            <div className="d-flex align-items-center gap-2" style={{ maxWidth: 280, width: "100%" }}>
+              <div className="position-relative flex-grow-1">
+                <Search size={14} className="position-absolute top-50 translate-middle-y" style={{ left: 10, color: "var(--lg-text-dim)" }} />
+                <Form.Control
+                  size="sm"
+                  placeholder="Search fund..."
+                  value={historySearch}
+                  onChange={(e) => onHistorySearchChange(e.target.value)}
+                  style={{ paddingLeft: 30 }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {filteredHistory.length === 0 ? (
+            <div className="text-secondary small py-4 text-center">No entries match "{historySearch}".</div>
+          ) : (
+            <>
+              <div className="table-responsive">
+                <Table className="lg-table mb-0">
+                  <thead><tr><th>Fund</th><th>Type</th><th>Started / date</th><th className="text-end">Invested</th><th className="text-end">Current estimate</th><th className="text-end">Gain</th></tr></thead>
+                  <tbody>
+                    {pagedHistory.map((item) => {
+                      const itemGain = Number(item.currentValue || item.current || 0) - Number(item.invested || item.amount || 0);
+                      return (
+                        <tr key={item.id || item._id || item.fund + item.date + item.type}>
+                          <td><div className="fw-semibold">{item.fund}</div><small className="text-secondary">{item.monthly ? `₹${fmtINR(item.monthly)}/month · ${item.source}` : item.source}</small></td>
+                          <td><span className="badge text-bg-light">{item.type}</span></td>
+                          <td>{item.started || item.date}</td>
+                          <td className="text-end font-mono">₹{fmtINR(item.invested || item.amount)}</td>
+                          <td className="text-end font-mono">₹{fmtINR(item.currentValue || item.current || item.amount)}</td>
+                          <td className={`text-end font-mono ${itemGain >= 0 ? "text-success" : "text-danger"}`}>{itemGain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(itemGain))}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </div>
+
+              <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                <small className="text-secondary">
+                  Showing {(historyPageClamped - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPageClamped * HISTORY_PAGE_SIZE, filteredHistory.length)} of {filteredHistory.length}
+                </small>
+                <div className="d-flex align-items-center gap-2">
+                  <Button variant="outline-secondary" size="sm" disabled={historyPageClamped <= 1} onClick={() => setHistoryPage(historyPageClamped - 1)} className="d-inline-flex align-items-center gap-1">
+                    <ChevronLeft size={14} /> Prev
+                  </Button>
+                  <small className="text-secondary">Page {historyPageClamped} of {historyTotalPages}</small>
+                  <Button variant="outline-secondary" size="sm" disabled={historyPageClamped >= historyTotalPages} onClick={() => setHistoryPage(historyPageClamped + 1)} className="d-inline-flex align-items-center gap-1">
+                    Next <ChevronRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </Card.Body>
+      </Card>
+
       <Card className="lg-card mt-4"><Card.Body><div className="font-serif mb-2">Free fund research sources</div><small className="text-secondary">Use the market refresh API when available, or verify a scheme's NAV and historical performance with these independent tools:</small><div className="d-flex flex-wrap gap-3 mt-3 small"><a href="https://www.morningstar.in/" target="_blank" rel="noreferrer">Morningstar India</a><a href="https://www.valueresearchonline.com/" target="_blank" rel="noreferrer">Value Research</a><a href="https://www.moneycontrol.com/mutual-funds/" target="_blank" rel="noreferrer">Moneycontrol</a><a href="https://groww.in/mutual-funds" target="_blank" rel="noreferrer">Groww</a><a href="https://dhanik.com/" target="_blank" rel="noreferrer">Dhanik</a><a href="https://www.mftools.in/" target="_blank" rel="noreferrer">MFTools</a></div></Card.Body></Card>
     </div>
   );
