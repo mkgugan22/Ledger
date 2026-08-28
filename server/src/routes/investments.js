@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
 });
 router.put("/:id", async (req, res) => {
   try {
-    const allowed = (({ fund, type, monthly, invested, currentValue, date, nav, source }) => ({ fund, type, monthly, invested, currentValue, date, nav, source }))(req.body);
+    const allowed = (({ fund, type, monthly, invested, currentValue, date, nav, units, xirr, source }) => ({ fund, type, monthly, invested, currentValue, date, nav, units, xirr, source }))(req.body);
     const doc = await Investment.findOneAndUpdate({ _id: req.params.id, user: req.userId }, allowed, { new: true, runValidators: true });
     if (!doc) return res.status(404).json({ error: "Investment not found" });
     res.json(doc);
