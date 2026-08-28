@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Check, ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Search, TrendingUp, X } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
-import { createInvestment } from "../../lib/api.js";
+import { createInvestment, editInvestment } from "../../lib/api.js";
 import { fmtINR } from "../../lib/format.js";
 
 const projection = (monthly, value, annualRate, years) => {
@@ -11,6 +11,8 @@ const projection = (monthly, value, annualRate, years) => {
   const r = annualRate / 100 / 12;
   return Math.round(value * (1 + r) ** months + monthly * (((1 + r) ** months - 1) / r));
 };
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // For each fund, the latest "Status" entry (by date) is the authoritative
 // current snapshot (invested-to-date, valuation, units, XIRR). Funds with no
@@ -45,18 +47,22 @@ function buildFundStatus(rows) {
       absReturn,
       monthly: bucket.monthly,
       asOf: s?.date ?? null,
+      statusEntryId: s?.id ?? s?._id ?? null,
     };
   });
 }
 
 const HISTORY_PAGE_SIZE = 8;
 
-export default function SipGrowth({ investments = [], onInvestmentAdded }) {
+export default function SipGrowth({ investments = [], onInvestmentAdded, onInvestmentUpdated }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "" });
   const [notice, setNotice] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
+  const [editingFund, setEditingFund] = useState(null);
+  const [editForm, setEditForm] = useState({ invested: "", currentValue: "", units: "", xirr: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
   const rows = investments;
 
   const fundStatus = useMemo(() => buildFundStatus(rows), [rows]);
@@ -113,6 +119,50 @@ export default function SipGrowth({ investments = [], onInvestmentAdded }) {
     setShowForm(false);
   }
 
+  function startEditFund(f) {
+    setEditingFund(f.fund);
+    setEditForm({
+      invested: String(f.invested ?? ""),
+      currentValue: String(f.current ?? ""),
+      units: f.units != null ? String(f.units) : "",
+      xirr: f.xirr != null ? String(f.xirr) : "",
+    });
+  }
+
+  function cancelEditFund() {
+    setEditingFund(null);
+  }
+
+  async function saveEditFund(f) {
+    if (editForm.invested === "" || editForm.currentValue === "") return;
+    setSavingEdit(true);
+    const payload = {
+      fund: f.fund,
+      type: "Status",
+      invested: Number(editForm.invested),
+      currentValue: Number(editForm.currentValue),
+      date: todayISO(),
+      monthly: 0,
+      ...(editForm.units !== "" ? { units: Number(editForm.units) } : {}),
+      ...(editForm.xirr !== "" ? { xirr: Number(editForm.xirr) } : {}),
+    };
+    try {
+      if (f.statusEntryId) {
+        const saved = await editInvestment(f.statusEntryId, payload);
+        onInvestmentUpdated?.(saved);
+      } else {
+        const saved = await createInvestment(payload);
+        onInvestmentAdded?.(saved);
+      }
+      setNotice(`${f.fund} status updated — as of ${payload.date}.`);
+      setEditingFund(null);
+    } catch (err) {
+      setNotice(`Couldn't update ${f.fund}: ${err.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title="SIP Growth" subtitle="A clear view of your contributions, current estimate, and possible future paths" right={<Button onClick={() => setShowForm((v) => !v)} className="d-inline-flex align-items-center gap-2"><Plus size={16} />Add investment</Button>} />
@@ -149,22 +199,46 @@ export default function SipGrowth({ investments = [], onInvestmentAdded }) {
           <div className="font-serif mb-3">Current status by fund</div>
           <div className="table-responsive">
             <Table className="lg-table mb-0">
-              <thead><tr><th>Fund</th><th className="text-end">Invested</th><th className="text-end">Units</th><th className="text-end">Valuation</th><th className="text-end">Gain</th><th className="text-end">Abs. return</th><th className="text-end">XIRR</th></tr></thead>
+              <thead><tr><th>Fund</th><th className="text-end">Invested</th><th className="text-end">Units</th><th className="text-end">Valuation</th><th className="text-end">Gain</th><th className="text-end">Abs. return</th><th className="text-end">XIRR</th><th className="text-end">Actions</th></tr></thead>
               <tbody>
-                {fundStatus.map((f) => (
-                  <tr key={f.fund}>
-                    <td><div className="fw-semibold">{f.fund}</div>{f.asOf && <small className="text-secondary">as of {f.asOf}</small>}</td>
-                    <td className="text-end font-mono">₹{fmtINR(f.invested)}</td>
-                    <td className="text-end font-mono">{f.units != null ? f.units.toFixed(4) : "—"}</td>
-                    <td className="text-end font-mono">₹{fmtINR(f.current)}</td>
-                    <td className={`text-end font-mono ${f.gain >= 0 ? "text-success" : "text-danger"}`}>{f.gain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(f.gain))}</td>
-                    <td className={`text-end font-mono ${f.absReturn >= 0 ? "text-success" : "text-danger"}`}>{f.absReturn >= 0 ? "+" : ""}{f.absReturn.toFixed(2)}%</td>
-                    <td className={`text-end font-mono ${f.xirr == null ? "" : f.xirr >= 0 ? "text-success" : "text-danger"}`}>{f.xirr != null ? `${f.xirr >= 0 ? "+" : ""}${f.xirr.toFixed(2)}%` : "—"}</td>
-                  </tr>
-                ))}
+                {fundStatus.map((f) => {
+                  const isEditing = editingFund === f.fund;
+                  return (
+                    <tr key={f.fund}>
+                      <td><div className="fw-semibold">{f.fund}</div>{f.asOf && <small className="text-secondary">as of {f.asOf}</small>}</td>
+                      {isEditing ? (
+                        <>
+                          <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={editForm.invested} onChange={(e) => setEditForm({ ...editForm, invested: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
+                          <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.0001" value={editForm.units} onChange={(e) => setEditForm({ ...editForm, units: e.target.value })} className="text-end" style={{ minWidth: 90 }} placeholder="—" /></td>
+                          <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={editForm.currentValue} onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
+                          <td className="text-end text-secondary small">auto</td>
+                          <td className="text-end text-secondary small">auto</td>
+                          <td className="text-end"><Form.Control size="sm" type="number" step="0.01" value={editForm.xirr} onChange={(e) => setEditForm({ ...editForm, xirr: e.target.value })} className="text-end" style={{ minWidth: 80 }} placeholder="—" /></td>
+                          <td className="text-end">
+                            <div className="d-flex justify-content-end gap-1">
+                              <Button size="sm" variant="success" disabled={savingEdit} onClick={() => saveEditFund(f)} title="Save"><Check size={14} /></Button>
+                              <Button size="sm" variant="outline-secondary" disabled={savingEdit} onClick={cancelEditFund} title="Cancel"><X size={14} /></Button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="text-end font-mono">₹{fmtINR(f.invested)}</td>
+                          <td className="text-end font-mono">{f.units != null ? f.units.toFixed(4) : "—"}</td>
+                          <td className="text-end font-mono">₹{fmtINR(f.current)}</td>
+                          <td className={`text-end font-mono ${f.gain >= 0 ? "text-success" : "text-danger"}`}>{f.gain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(f.gain))}</td>
+                          <td className={`text-end font-mono ${f.absReturn >= 0 ? "text-success" : "text-danger"}`}>{f.absReturn >= 0 ? "+" : ""}{f.absReturn.toFixed(2)}%</td>
+                          <td className={`text-end font-mono ${f.xirr == null ? "" : f.xirr >= 0 ? "text-success" : "text-danger"}`}>{f.xirr != null ? `${f.xirr >= 0 ? "+" : ""}${f.xirr.toFixed(2)}%` : "—"}</td>
+                          <td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => startEditFund(f)} title="Edit"><Pencil size={14} /></Button></td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           </div>
+          <small className="text-secondary d-block mt-3">Saving here records today's date as the "as of" snapshot for that fund — it won't affect your SIP contribution history below.</small>
         </Card.Body>
       </Card>
 
