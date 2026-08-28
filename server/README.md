@@ -35,7 +35,9 @@ npm install
 npm run dev              # restarts on file changes
 ```
 
-The API listens on `http://localhost:5000` by default (`PORT` in `.env`).
+The API listens on `http://localhost:5000` by default (`PORT` in `.env`). In
+production, your hosting provider supplies the public API URL and may supply
+the port through `PORT`.
 
 ## Endpoints
 
@@ -57,5 +59,9 @@ The API listens on `http://localhost:5000` by default (`PORT` in `.env`).
 - The MongoDB URI you share with anyone (including in a chat) should be
   treated as compromised — rotate the database user's password in Atlas if
   it's ever been pasted somewhere outside your own `.env` file.
-- CORS is restricted to `CLIENT_ORIGIN` — update it when you deploy the
-  client somewhere other than `localhost:5173`.
+- CORS is restricted to `CLIENT_ORIGIN` — set it to the exact HTTPS Netlify
+  site URL when the client is deployed. Multiple origins may be separated by
+  commas.
+- Production sessions use a secure `SameSite=None` cookie so the Netlify
+  frontend can authenticate against an API hosted on another domain. The API
+  must be served over HTTPS in production.
