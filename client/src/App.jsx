@@ -62,6 +62,9 @@ export default function App() {
   const deleteValuation = useCallback(async (id) => { try { await removeValuation(id); setValuations((prev) => prev.filter((v) => v.id !== id)); } catch (err) { setApiError(`Couldn't delete that valuation (${err.message}).`); } }, []);
   const shared = { selectedMonth, setSelectedMonth, defaultMonth: selectedMonth, allMonths, totals, monthTx, categoryChartData, typeHints, valuations, instrumentNames, trendData, addTransaction, updateTransaction, deleteTransaction, addValuation, deleteValuation };
 
+  const addInvestmentItem = useCallback((item) => setInvestments((prev) => [...prev, item]), []);
+  const updateInvestmentItem = useCallback((item) => setInvestments((prev) => prev.map((it) => ((it.id || it._id) === (item.id || item._id) ? item : it))), []);
+
   if (!authChecked) return <div className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}><span className="font-serif text-secondary">Opening the ledger…</span></div>;
   return <BrowserRouter>
     <Routes>
@@ -71,7 +74,7 @@ export default function App() {
         <Route path="add" element={<AddEntry {...shared} />} />
         <Route path="entries" element={<Entries {...shared} />} />
         <Route path="savings" element={<SavingsTracker {...shared} />} />
-        <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={(item) => setInvestments((prev) => [...prev, item])} />} />
+        <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={addInvestmentItem} onInvestmentUpdated={updateInvestmentItem} />} />
       </Route>
     </Routes>
   </BrowserRouter>;
