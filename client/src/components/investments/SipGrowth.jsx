@@ -21,7 +21,7 @@ function buildFundStatus(rows) {
   const byFund = new Map();
   for (const item of rows) {
     const key = item.fund;
-    if (!byFund.has(key)) byFund.set(key, { fund: key, statusEntry: null, invested: 0, current: 0, monthly: 0 });
+    if (!byFund.has(key)) byFund.set(key, { fund: key, statusEntry: null, invested: 0, current: 0, monthly: 0, assetClass: item.assetClass || "Equity" });
     const bucket = byFund.get(key);
     if (item.type === "Status") {
       if (!bucket.statusEntry || item.date >= bucket.statusEntry.date) bucket.statusEntry = item;
@@ -48,6 +48,8 @@ function buildFundStatus(rows) {
       monthly: bucket.monthly,
       asOf: s?.date ?? null,
       statusEntryId: s?.id ?? s?._id ?? null,
+      assetClass: s?.assetClass || bucket.assetClass,
+      benchmarkReturn: s?.benchmarkReturn ?? null,
     };
   });
 }
@@ -74,6 +76,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
   const gain = totals.current - totals.invested;
   const gainPct = totals.invested ? (gain / totals.invested) * 100 : 0;
   const monthly = fundStatus.reduce((sum, f) => sum + f.monthly, 0);
+  const allocation = useMemo(() => Object.entries(fundStatus.reduce((acc, f) => ({ ...acc, [f.assetClass]: (acc[f.assetClass] || 0) + f.current }), {})).map(([name, value]) => ({ name, value })), [fundStatus]);
   const chart = [0, 1, 2, 3, 4, 5].map((year) => ({ year: `${year}Y`, invested: Math.round(totals.invested + monthly * year * 12), value: projection(monthly, totals.current, 10, year) }));
   const scenarios = [8, 10, 12].map((rate) => ({ rate, one: projection(monthly, totals.current, rate, 1), three: projection(monthly, totals.current, rate, 3), five: projection(monthly, totals.current, rate, 5) }));
 
@@ -196,6 +199,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
         </Card>
       )}
       <Row className="g-3 mb-4"><Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Total invested</div><div className="lg-summary-value font-mono">₹{fmtINR(totals.invested)}</div><small className="text-secondary">From your saved investments</small></Card.Body></Card></Col><Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Estimated value</div><div className="lg-summary-value font-mono">₹{fmtINR(totals.current)}</div><small className="text-secondary">NAV-based estimate</small></Card.Body></Card></Col><Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Overall gain</div><div className={`lg-summary-value font-mono ${gain >= 0 ? "text-success" : "text-danger"}`}>{gain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(gain))}</div><small className={gain >= 0 ? "text-success" : "text-danger"}>{gain >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {Math.abs(gainPct).toFixed(2)}%</small></Card.Body></Card></Col><Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Monthly SIP</div><div className="lg-summary-value font-mono">₹{fmtINR(monthly)}</div><small className="text-secondary">From your active SIPs</small></Card.Body></Card></Col></Row>
+      {allocation.length > 0 && <Card className="lg-card mb-4"><Card.Body><div className="font-serif mb-2">Asset-class allocation</div><div className="d-flex gap-3 flex-wrap">{allocation.map((item) => <span key={item.name} className="small"><strong>{item.name}</strong> · ₹{fmtINR(item.value)} ({totals.current ? ((item.value / totals.current) * 100).toFixed(1) : 0}%)</span>)}</div></Card.Body></Card>}
       <Row className="g-4 mb-4"><Col lg={8}><Card className="lg-card h-100"><Card.Body><div className="d-flex justify-content-between align-items-center mb-3"><div><div className="font-serif">Growth outlook</div><small className="text-secondary">10% assumed annual return scenario</small></div><TrendingUp size={18} color="var(--lg-brass)" /></div><ResponsiveContainer width="100%" height={280}><AreaChart data={chart}><defs><linearGradient id="sipFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f7d70" stopOpacity={0.28} /><stop offset="95%" stopColor="#4f7d70" stopOpacity={0.03} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="var(--lg-rule)" /><XAxis dataKey="year" tick={{ fill: "var(--lg-text-dim)", fontSize: 11 }} /><YAxis tick={{ fill: "var(--lg-text-dim)", fontSize: 11 }} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} /><Tooltip formatter={(v) => `₹${fmtINR(v)}`} contentStyle={{ background: "var(--lg-surface)", border: "1px solid var(--lg-rule)" }} /><Area type="monotone" dataKey="invested" stroke="#9c8660" fill="transparent" strokeDasharray="5 5" name="Invested" /><Area type="monotone" dataKey="value" stroke="#3e6259" fill="url(#sipFill)" name="Estimated value" /></AreaChart></ResponsiveContainer></Card.Body></Card></Col><Col lg={4}><Card className="lg-card h-100"><Card.Body><div className="font-serif mb-3">Scenario planner</div><Table responsive size="sm" className="lg-table mb-0"><thead><tr><th>Rate</th><th>1 year</th><th>3 years</th><th>5 years</th></tr></thead><tbody>{scenarios.map((s) => <tr key={s.rate}><td className="fw-semibold">{s.rate}%</td><td className="font-mono">₹{fmtINR(s.one)}</td><td className="font-mono">₹{fmtINR(s.three)}</td><td className="font-mono">₹{fmtINR(s.five)}</td></tr>)}</tbody></Table><small className="text-secondary d-block mt-3">Illustrative compounding only. Actual returns will vary.</small></Card.Body></Card></Col></Row>
 
       <Card className="lg-card mb-4">
@@ -203,7 +207,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
           <div className="font-serif mb-3">Current status by fund</div>
           <div className="table-responsive">
             <Table className="lg-table mb-0">
-              <thead><tr><th>Fund</th><th className="text-end">Invested</th><th className="text-end">Units</th><th className="text-end">Valuation</th><th className="text-end">Gain</th><th className="text-end">Abs. return</th><th className="text-end">XIRR</th><th className="text-end">Actions</th></tr></thead>
+              <thead><tr><th>Fund</th><th className="text-end">Invested</th><th className="text-end">Units</th><th className="text-end">Valuation</th><th className="text-end">Gain</th><th className="text-end">Abs. return</th><th className="text-end">XIRR</th><th className="text-end">Benchmark</th><th className="text-end">Actions</th></tr></thead>
               <tbody>
                 {fundStatus.map((f) => {
                   const isEditing = editingFund === f.fund;
@@ -218,6 +222,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                           <td className="text-end text-secondary small">auto</td>
                           <td className="text-end text-secondary small">auto</td>
                           <td className="text-end"><Form.Control size="sm" type="number" step="0.01" value={editForm.xirr} onChange={(e) => setEditForm({ ...editForm, xirr: e.target.value })} className="text-end" style={{ minWidth: 80 }} placeholder="—" /></td>
+                          <td className="text-end text-secondary small">set when adding status</td>
                           <td className="text-end">
                             <div className="d-flex justify-content-end gap-1">
                               <Button size="sm" variant="success" disabled={savingEdit} onClick={() => saveEditFund(f)} title="Save"><Check size={14} /></Button>
@@ -233,6 +238,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                           <td className={`text-end font-mono ${f.gain >= 0 ? "text-success" : "text-danger"}`}>{f.gain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(f.gain))}</td>
                           <td className={`text-end font-mono ${f.absReturn >= 0 ? "text-success" : "text-danger"}`}>{f.absReturn >= 0 ? "+" : ""}{f.absReturn.toFixed(2)}%</td>
                           <td className={`text-end font-mono ${f.xirr == null ? "" : f.xirr >= 0 ? "text-success" : "text-danger"}`}>{f.xirr != null ? `${f.xirr >= 0 ? "+" : ""}${f.xirr.toFixed(2)}%` : "—"}</td>
+                          <td className="text-end font-mono">{f.benchmarkReturn != null ? `${f.benchmarkReturn.toFixed(2)}%` : "—"}</td>
                           <td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => startEditFund(f)} title="Edit"><Pencil size={14} /></Button></td>
                         </>
                       )}
