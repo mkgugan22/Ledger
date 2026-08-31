@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
-import { Card, Table, Form } from "react-bootstrap";
-import { Trash2, Pencil, Check, X } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Card, Table, Form, Button, Spinner } from "react-bootstrap";
+import { Trash2, Pencil, Check, X, Repeat, Download, Upload, RefreshCw } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import MonthPicker from "../shared/MonthPicker.jsx";
 import EmptyState from "../shared/EmptyState.jsx";
@@ -13,10 +13,17 @@ export default function Entries({
   monthTx,
   updateTransaction,
   deleteTransaction,
+  generateRecurring,
+  exportCSV,
+  importCSV,
 }) {
   const [filterMode, setFilterMode] = useState("All");
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
+  const [generating, setGenerating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const fileInputRef = useRef(null);
 
   const rows = useMemo(() => {
     const list = filterMode === "All" ? monthTx : monthTx.filter((t) => t.mode === filterMode);
@@ -34,8 +41,47 @@ export default function Entries({
       month: draft.month,
       mode: draft.mode,
       note: draft.note,
+      recurring: !!draft.recurring, // preserve the recurring flag through inline edits
     });
     setEditingId(null);
+  }
+
+  async function handleGenerateRecurring() {
+    if (!generateRecurring) return;
+    setGenerating(true);
+    setStatusMsg("");
+    try {
+      const result = await generateRecurring(selectedMonth);
+      const createdCount = result?.created?.length || 0;
+      setStatusMsg(
+        createdCount > 0
+          ? `Generated ${createdCount} recurring ${createdCount === 1 ? "entry" : "entries"} for ${monthLabel(selectedMonth)}.`
+          : `Nothing new to generate for ${monthLabel(selectedMonth)} — recurring entries are already up to date.`
+      );
+    } catch (err) {
+      setStatusMsg(`Couldn't generate recurring entries (${err.message}).`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    if (!file || !importCSV) return;
+    setImporting(true);
+    setStatusMsg("");
+    try {
+      const text = await file.text();
+      const result = await importCSV(text);
+      const parts = [`Imported ${result.imported} ${result.imported === 1 ? "entry" : "entries"}.`];
+      if (result.failed > 0) parts.push(`${result.failed} row(s) skipped — check formatting and try again.`);
+      setStatusMsg(parts.join(" "));
+    } catch (err) {
+      setStatusMsg(`Couldn't import that file (${err.message}).`);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
@@ -46,7 +92,7 @@ export default function Entries({
         right={<MonthPicker value={selectedMonth} onChange={setSelectedMonth} />}
       />
 
-      <div className="d-flex gap-2 flex-wrap mb-3">
+      <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
         {["All", ...MODES].map((m) => (
           <button
             key={m}
@@ -56,7 +102,39 @@ export default function Entries({
             {m}
           </button>
         ))}
+
+        <div className="ms-auto d-flex gap-2 flex-wrap">
+          {generateRecurring && (
+            <Button size="sm" variant="outline-secondary" onClick={handleGenerateRecurring} disabled={generating}>
+              {generating ? <Spinner size="sm" animation="border" className="me-1" /> : <RefreshCw size={14} className="me-1" />}
+              Generate this month's recurring entries
+            </Button>
+          )}
+          {exportCSV && (
+            <Button size="sm" variant="outline-secondary" onClick={() => exportCSV()}>
+              <Download size={14} className="me-1" />
+              Export CSV
+            </Button>
+          )}
+          {importCSV && (
+            <>
+              <Button size="sm" variant="outline-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                {importing ? <Spinner size="sm" animation="border" className="me-1" /> : <Upload size={14} className="me-1" />}
+                Import CSV
+              </Button>
+              <Form.Control
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleImportFile}
+                className="d-none"
+              />
+            </>
+          )}
+        </div>
       </div>
+
+      {statusMsg && <div className="small text-secondary mb-3">{statusMsg}</div>}
 
       <Card className="lg-card">
         <Card.Body>
@@ -132,7 +210,12 @@ export default function Entries({
                               {t.mode}
                             </span>
                           </td>
-                          <td>{t.type}</td>
+                          <td>
+                            {t.type}
+                            {t.recurring && (
+                              <Repeat size={12} className="ms-1 text-secondary" title="Recurring entry" />
+                            )}
+                          </td>
                           <td className="text-end font-mono">₹{fmtINR(t.amount)}</td>
                           <td className="d-none d-md-table-cell text-secondary small">{t.note}</td>
                           <td className="text-nowrap">
