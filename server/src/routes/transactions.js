@@ -73,115 +73,104 @@ router.get(
   })
 );
 
-// Shared by both the ?preview=true dry-run and the real commit path, so the
-// two can never drift: whatever the preview said would happen is exactly
-// what the commit does.
-//
-// Validates every row independently (unchanged behavior — one bad row never
-// sinks the whole file) and additionally flags rows whose mode+type+amount+
-// month combination already exists for this user, or is repeated elsewhere
-// in the same file, as a duplicate. Duplicates are a warning, not an error:
-// they're still valid and still get inserted on commit.
-async function buildImportPlan(rows, userId) {
-  const plan = [];
-  const validRows = []; // { line, data }
 
-  for (const row of rows) {
-    const result = csvTransactionRowSchema.safeParse(row.values);
-    if (!result.success) {
-      plan.push({
-        line: row.line,
-        status: "error",
-        error: result.error.issues[0]?.message || "Invalid row.",
-      });
-      continue;
-    }
-    validRows.push({ line: row.line, data: result.data });
-  }
 
-  // One batched query for existing duplicates rather than one query per row.
-  let existingKeys = new Set();
-  if (validRows.length) {
-    const or = validRows.map(({ data }) => ({
-      mode: data.mode,
-      type: data.type,
-      amount: data.amount,
-      month: data.month,
-    }));
-    const existing = await Transaction.find({ user: userId, $or: or }, "mode type amount month");
-    existingKeys = new Set(existing.map((e) => `${e.mode}|${e.type}|${e.amount}|${e.month}`));
-  }
 
-  const seenInFile = new Set();
-  const toInsert = [];
-  for (const { line, data } of validRows) {
-    const key = `${data.mode}|${data.type}|${data.amount}|${data.month}`;
-    const isDuplicate = existingKeys.has(key) || seenInFile.has(key);
-    seenInFile.add(key);
-    plan.push({
-      line,
-      status: "ok",
-      mode: data.mode,
-      type: data.type,
-      amount: data.amount,
-      month: data.month,
-      duplicate: isDuplicate,
-    });
-    toInsert.push({ ...data, user: userId });
-  }
 
-  const errors = plan.filter((p) => p.status === "error");
-  const duplicateCount = plan.filter((p) => p.status === "ok" && p.duplicate).length;
-  return { plan, toInsert, errors, duplicateCount };
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // POST /api/transactions/import — bulk-create entries from a CSV file body.
-//
-// ?preview=true switches this to a dry run: rows are validated and a
-// row-by-row plan is returned (nothing is written to the database), so a
-// client can show "12 will be imported, 2 have errors" before the user
-// commits — useful for a file they didn't create themselves. Without
-// ?preview=true, behavior is exactly what it was before: valid rows are
-// inserted, invalid rows are skipped and reported by line number. The only
-// addition to the commit response is a new `duplicates` count; existing
-// fields (imported, failed, errors) are unchanged.
+// Every row is validated independently: valid rows are inserted, invalid
+// rows are skipped and reported back with their line number and reason so
+// one bad row never sinks the whole file.
+
+
+
+
+
+
 router.post(
   "/import",
   asyncHandler(async (req, res) => {
-    const text = typeof req.body === "string" ? req.body : req.body?.csv;
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: "No CSV content received." });
-    }
-
-    const { header, rows } = parseCSV(text);
-    if (rows.length === 0) {
-      return res.status(400).json({ error: "The CSV file has no data rows." });
-    }
-    const required = ["mode", "type", "amount", "month"];
-    const missingCols = required.filter((c) => !header.includes(c));
-    if (missingCols.length) {
+@@ -95,105 +163,109 @@
       return res.status(400).json({ error: `CSV is missing required column(s): ${missingCols.join(", ")}` });
     }
 
-    const isPreview = req.query.preview === "true";
-    const { plan, toInsert, errors, duplicateCount } = await buildImportPlan(rows, req.userId);
+    const errors = [];
+    const toInsert = [];
+    for (const row of rows) {
+      const result = csvTransactionRowSchema.safeParse(row.values);
+      if (!result.success) {
+        errors.push({ line: row.line, error: result.error.issues[0]?.message || "Invalid row." });
+        continue;
+      }
+      toInsert.push({ ...result.data, user: req.userId });
 
-    if (isPreview) {
-      return res.json({
-        preview: true,
-        totalRows: rows.length,
-        willImport: toInsert.length,
-        failed: errors.length,
-        duplicates: duplicateCount,
-        plan,
-      });
+
+
     }
 
     const created = toInsert.length ? await Transaction.insertMany(toInsert) : [];
     res.status(207).json({
       imported: created.length,
       failed: errors.length,
-      duplicates: duplicateCount,
+
       errors,
     });
   })
