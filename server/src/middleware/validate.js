@@ -25,8 +25,11 @@ export function validateQuery(schema) {
 }
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must be in YYYY-MM format.");
-const pageSchema = z.coerce.number().int().min(1, "page must be at least 1.").default(1);
-const limitSchema = z.coerce.number().int().min(1, "limit must be at least 1.").max(500, "limit cannot exceed 500.").default(200);
+// Do not default these here: routes use the absence of page/limit to preserve
+// their legacy plain-array response. Defaults are applied only after a caller
+// explicitly asks for a paginated response.
+const pageSchema = z.coerce.number().int().min(1, "page must be at least 1.");
+const limitSchema = z.coerce.number().int().min(1, "limit must be at least 1.").max(500, "limit cannot exceed 500.");
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(80),

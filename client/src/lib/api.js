@@ -25,7 +25,16 @@ function withId(doc) {
   return { ...doc, id: doc._id };
 }
 
-export const fetchTransactions = async () => (await request("/transactions")).map(withId);
+// List endpoints return an array for legacy callers and { items, ... } only
+// when pagination is requested. Accept both forms so a rolling API deploy or
+// a pagination-aware caller cannot crash the dashboard.
+function collection(body) {
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.items)) return body.items;
+  throw new Error("The server returned an invalid list response.");
+}
+
+export const fetchTransactions = async () => collection(await request("/transactions")).map(withId);
 export const createTransaction = async (data) => withId(await request("/transactions", { method: "POST", body: JSON.stringify(data) }));
 export const editTransaction = async (id, data) => withId(await request(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 export const removeTransaction = (id) => request(`/transactions/${id}`, { method: "DELETE" });
@@ -74,7 +83,7 @@ export async function exportTransactionsCSV() {
 export const importTransactionsCSV = (csvText) =>
   request("/transactions/import", { method: "POST", body: JSON.stringify({ csv: csvText }) });
 
-export const fetchValuations = async () => (await request("/valuations")).map(withId);
+export const fetchValuations = async () => collection(await request("/valuations")).map(withId);
 export const upsertValuation = async (data) => withId(await request("/valuations", { method: "POST", body: JSON.stringify(data) }));
 export const removeValuation = (id) => request(`/valuations/${id}`, { method: "DELETE" });
 
@@ -83,13 +92,13 @@ export const register = (data) => request("/auth/register", { method: "POST", bo
 export const fetchSession = () => request("/auth/me");
 export const logout = () => request("/auth/logout", { method: "POST" });
 
-export const fetchInvestments = async () => (await request("/investments")).map(withId);
+export const fetchInvestments = async () => collection(await request("/investments")).map(withId);
 export const createInvestment = async (data) => withId(await request("/investments", { method: "POST", body: JSON.stringify(data) }));
 export const editInvestment = async (id, data) => withId(await request(`/investments/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 export const removeInvestment = (id) => request(`/investments/${id}`, { method: "DELETE" });
 export const searchMarketFunds = (query) => request(`/market/search?q=${encodeURIComponent(query)}`);
 export const fetchMarketFund = (schemeCode) => request(`/market/${encodeURIComponent(schemeCode)}`);
 
-export const fetchBudgets = async (month) => (await request(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets")).map(withId);
+export const fetchBudgets = async (month) => collection(await request(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets")).map(withId);
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
