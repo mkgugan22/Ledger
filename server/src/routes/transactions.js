@@ -3,7 +3,9 @@ import Transaction from "../models/Transaction.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   validateBody,
+  validateQuery,
   transactionSchema,
+  transactionListQuerySchema,
   generateRecurringSchema,
   csvTransactionRowSchema,
 } from "../middleware/validate.js";
@@ -21,6 +23,7 @@ const CSV_COLUMNS = ["mode", "type", "amount", "month", "note", "recurring", "fr
 // caller explicitly opts in with ?page= or ?limit=.
 router.get(
   "/",
+  validateQuery(transactionListQuerySchema),
   asyncHandler(async (req, res) => {
     const filter = { user: req.userId };
     if (req.query.month) filter.month = String(req.query.month);
@@ -36,8 +39,8 @@ router.get(
       return res.json(list);
     }
 
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 200;
     const [items, total] = await Promise.all([
       Transaction.find(filter)
         .sort({ createdAt: 1 })
@@ -146,7 +149,11 @@ router.post(
         skipped.push({ type: template.type, reason: "Already generated for this month." });
         continue;
       }
-      const doc = await Transaction.create({
+      const result = await Transaction.updateOne({
+        user: req.userId,
+        generatedFrom: template._id,
+        month,
+      }, { $setOnInsert: {
         user: req.userId,
         mode: template.mode,
         type: template.type,
@@ -155,8 +162,12 @@ router.post(
         note: template.note,
         recurring: false,
         generatedFrom: template._id,
-      });
-      created.push(doc);
+      } }, { upsert: true });
+      if (result.upsertedCount) {
+        created.push(await Transaction.findById(result.upsertedId));
+      } else {
+        skipped.push({ type: template.type, reason: "Already generated for this month." });
+      }
     }
 
     res.status(201).json({ created, skipped });

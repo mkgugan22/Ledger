@@ -29,6 +29,9 @@ transactionSchema.index({ month: 1, mode: 1 });
 // Speeds up "find this user's recurring templates" during generation, and
 // "has this template already been applied to this month" dedupe checks.
 transactionSchema.index({ user: 1, recurring: 1 });
-transactionSchema.index({ user: 1, generatedFrom: 1, month: 1 });
+transactionSchema.index(
+  { user: 1, generatedFrom: 1, month: 1 },
+  { unique: true, partialFilterExpression: { generatedFrom: { $type: "objectId" } } }
+);
 
 export default mongoose.model("Transaction", transactionSchema);

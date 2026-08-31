@@ -1,7 +1,7 @@
 import { Router } from "express";
 import Investment from "../models/Investment.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { validateBody, investmentSchema, investmentUpdateSchema } from "../middleware/validate.js";
+import { validateBody, validateQuery, investmentSchema, investmentUpdateSchema, investmentListQuerySchema } from "../middleware/validate.js";
 
 const router = Router();
 
@@ -9,14 +9,15 @@ const router = Router();
 // a plain array by default, pagination only when explicitly requested.
 router.get(
   "/",
+  validateQuery(investmentListQuerySchema),
   asyncHandler(async (req, res) => {
     const filter = { user: req.userId };
     const wantsPagination = req.query.page !== undefined || req.query.limit !== undefined;
     if (!wantsPagination) {
       return res.json(await Investment.find(filter).sort({ date: 1, createdAt: 1 }));
     }
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 200;
     const [items, total] = await Promise.all([
       Investment.find(filter)
         .sort({ date: 1, createdAt: 1 })

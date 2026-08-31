@@ -15,7 +15,7 @@ const router = Router();
 // database currently contains one account, so it is safe to claim those legacy
 // records for that account during the first authenticated request. The guard
 // prevents accidental cross-user assignment once multiple accounts exist.
-async function claimLegacyRecords(userId) {
+export async function claimLegacyRecords(userId) {
   if (await User.countDocuments() !== 1) return;
   await Promise.all([
     Transaction.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),

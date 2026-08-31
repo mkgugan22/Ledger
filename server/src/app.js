@@ -21,9 +21,12 @@ export function createApp() {
     .split(",")
     .map((o) => o.trim());
 
+  // Render terminates TLS before forwarding requests. Trust only that first
+  // proxy so the auth limiter sees the real client address.
+  if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins, credentials: true }));
-  app.use(express.json());
+  app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
 
   app.get("/api/health", (req, res) => res.json({ ok: true }));
@@ -42,8 +45,8 @@ export function createApp() {
   app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
     console.error(err);
-    const status = err.status || (err.name === "ValidationError" ? 400 : 500);
-    res.status(status).json({ error: err.message || "Something went wrong." });
+    const status = err.status || (err.name === "ValidationError" || err.name === "CastError" ? 400 : 500);
+    res.status(status).json({ error: status >= 500 ? "Something went wrong." : err.message || "Invalid request." });
   });
 
   return app;

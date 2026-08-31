@@ -15,6 +15,19 @@ export function validateBody(schema) {
   };
 }
 
+export function validateQuery(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) return res.status(400).json({ error: result.error.issues[0]?.message || "Invalid query parameters." });
+    req.query = result.data;
+    next();
+  };
+}
+
+const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must be in YYYY-MM format.");
+const pageSchema = z.coerce.number().int().min(1, "page must be at least 1.").default(1);
+const limitSchema = z.coerce.number().int().min(1, "limit must be at least 1.").max(500, "limit cannot exceed 500.").default(200);
+
 export const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(80),
   email: z.string().trim().email("Enter a valid email address."),
@@ -35,7 +48,7 @@ export const transactionSchema = z
     mode: z.enum(["Income", "Needs", "Savings", "Spending"]),
     type: z.string().trim().min(1, "Type is required."),
     amount: z.number().min(0, "Amount must be zero or greater."),
-    month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format."),
+    month: monthSchema,
     note: z.string().trim().max(500).optional().default(""),
     recurring: z.boolean().optional().default(false),
     frequency: z.enum(["monthly"]).optional(),
@@ -46,7 +59,7 @@ export const transactionSchema = z
   }));
 
 export const valuationSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format."),
+  month: monthSchema,
   instrument: z.string().trim().min(1, "Instrument is required."),
   value: z.number().min(0, "Value must be zero or greater."),
 });
@@ -69,11 +82,11 @@ export const investmentUpdateSchema = investmentSchema.partial();
 
 // Body for POST /api/transactions/generate-recurring
 export const generateRecurringSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format."),
+  month: monthSchema,
 });
 
 export const budgetSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format."),
+  month: monthSchema,
   mode: z.enum(["Income", "Needs", "Savings", "Spending"]),
   type: z.string().trim().min(1, "Type is required."),
   plannedAmount: z.number().min(0, "Planned amount must be zero or greater."),
@@ -105,7 +118,7 @@ export const csvTransactionRowSchema = z
     mode: z.enum(["Income", "Needs", "Savings", "Spending"]),
     type: z.string().trim().min(1, "Type is required."),
     amount: csvNumber("Amount must be a number 0 or greater."),
-    month: z.string().trim().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format."),
+    month: monthSchema,
     note: z.string().trim().optional().default(""),
     recurring: csvBoolean.optional().default(false),
     frequency: z.string().trim().optional().default(""),
@@ -119,3 +132,16 @@ export const csvTransactionRowSchema = z
     recurring: data.recurring,
     frequency: data.recurring ? data.frequency || "monthly" : undefined,
   }));
+
+export const transactionListQuerySchema = z.object({
+  month: monthSchema.optional(),
+  from: monthSchema.optional(),
+  to: monthSchema.optional(),
+  page: pageSchema.optional(),
+  limit: limitSchema.optional(),
+}).strict().refine((value) => !(value.month && (value.from || value.to)), { message: "Use month or from/to, not both." }).refine((value) => !value.from || !value.to || value.from <= value.to, { message: "from must not be after to." });
+
+export const investmentListQuerySchema = z.object({
+  page: pageSchema.optional(),
+  limit: limitSchema.optional(),
+}).strict();
