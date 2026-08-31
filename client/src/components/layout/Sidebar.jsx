@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Landmark, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut } from "lucide-react";
+import { Landmark, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut, Target } from "lucide-react";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: BookOpen, end: true },
   { to: "/add", label: "Add Entry", icon: PlusCircle },
   { to: "/entries", label: "All Entries", icon: List },
+  { to: "/budget", label: "Budget", icon: Target },
   { to: "/savings", label: "Savings Tracker", icon: PiggyBank },
   { to: "/sip-growth", label: "SIP Growth", icon: TrendingUp },
 ];
