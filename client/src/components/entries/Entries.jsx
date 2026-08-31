@@ -6,6 +6,7 @@ import MonthPicker from "../shared/MonthPicker.jsx";
 import EmptyState from "../shared/EmptyState.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
+import ReceiptLinks from "./ReceiptLinks.jsx";
 
 export default function Entries({
   selectedMonth,
@@ -217,7 +218,7 @@ export default function Entries({
                             )}
                           </td>
                           <td className="text-end font-mono">₹{fmtINR(t.amount)}</td>
-                          <td className="d-none d-md-table-cell text-secondary small">{t.note}</td>
+                          <td className="d-none d-md-table-cell text-secondary small">{t.note}<ReceiptLinks transactionId={t.id} /></td>
                           <td className="text-nowrap">
                             <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => startEdit(t)}>
                               <Pencil size={14} />

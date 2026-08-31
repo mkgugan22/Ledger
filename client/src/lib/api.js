@@ -37,6 +37,8 @@ export async function uploadTransactionReceipt(transactionId, file) {
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
   return request(`/transactions/${transactionId}/receipts`, { method: "POST", body: JSON.stringify({ filename: file.name, contentType: file.type, data: btoa(binary) }) });
 }
+export const fetchTransactionReceipts = (transactionId) => request(`/transactions/${transactionId}/receipts`);
+export const transactionReceiptUrl = (transactionId, receiptId) => `${API_URL}/transactions/${transactionId}/receipts/${receiptId}`;
 
 // Recurring transactions: ask the server to materialize this month's
 // entries from every template (recurring: true) the user has. Safe to call
