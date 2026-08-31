@@ -74,81 +74,25 @@ router.get(
 );
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // POST /api/transactions/import — bulk-create entries from a CSV file body.
 // Every row is validated independently: valid rows are inserted, invalid
 // rows are skipped and reported back with their line number and reason so
 // one bad row never sinks the whole file.
-
-
-
-
-
-
 router.post(
   "/import",
   asyncHandler(async (req, res) => {
-@@ -95,105 +163,109 @@
+    const text = typeof req.body === "string" ? req.body : req.body?.csv;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "No CSV content received." });
+    }
+
+    const { header, rows } = parseCSV(text);
+    if (rows.length === 0) {
+      return res.status(400).json({ error: "The CSV file has no data rows." });
+    }
+    const required = ["mode", "type", "amount", "month"];
+    const missingCols = required.filter((c) => !header.includes(c));
+    if (missingCols.length) {
       return res.status(400).json({ error: `CSV is missing required column(s): ${missingCols.join(", ")}` });
     }
 
@@ -161,7 +105,6 @@ router.post(
         continue;
       }
       toInsert.push({ ...result.data, user: req.userId });
-
 
 
     }
