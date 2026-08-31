@@ -17,15 +17,17 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
   const [amount, setAmount] = useState("");
   const [month, setMonth] = useState(defaultMonth);
   const [note, setNote] = useState("");
+  const [recurring, setRecurring] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
   function submit(e) {
     e.preventDefault();
     if (!type.trim() || !amount || Number(amount) <= 0) return;
-    addTransaction({ mode, type: type.trim(), amount: Number(amount), month, note: note.trim() });
+    addTransaction({ mode, type: type.trim(), amount: Number(amount), month, note: note.trim(), recurring });
     setType("");
     setAmount("");
     setNote("");
+    setRecurring(false);
     setShowToast(true);
   }
 
@@ -111,6 +113,23 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
                     placeholder="Anything worth remembering about this entry"
                   />
                 </Form.Group>
+              </Col>
+
+              <Col xs={12}>
+                <Form.Check
+                  type="checkbox"
+                  id="recurring-check"
+                  checked={recurring}
+                  onChange={(e) => setRecurring(e.target.checked)}
+                  label="This repeats every month (e.g. rent, a SIP debit)"
+                  className="small text-secondary"
+                />
+                {recurring && (
+                  <div className="small text-secondary mt-1">
+                    Use "Generate this month's recurring entries" on the All Entries page to create
+                    this entry in future months.
+                  </div>
+                )}
               </Col>
             </Row>
 
