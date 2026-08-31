@@ -1,6 +1,9 @@
 import jwt from "jsonwebtoken";
 
-const secret = () => process.env.JWT_SECRET || "development-only-change-me";
+// JWT_SECRET is required (validated at startup in index.js). No insecure
+// fallback here — a missing secret should crash the process, not silently
+// sign tokens with a well-known, publicly-committed string.
+const secret = () => process.env.JWT_SECRET;
 
 export function issueSession(res, user) {
   const token = jwt.sign({ sub: user._id.toString(), email: user.email }, secret(), { expiresIn: "7d" });
