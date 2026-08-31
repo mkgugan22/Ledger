@@ -49,6 +49,22 @@ export async function uploadTransactionReceipt(transactionId, file) {
 export const fetchTransactionReceipts = (transactionId) => request(`/transactions/${transactionId}/receipts`);
 export const transactionReceiptUrl = (transactionId, receiptId) => `${API_URL}/transactions/${transactionId}/receipts/${receiptId}`;
 
+// Auto-fill: sends a payslip PDF to the server for text extraction and gets
+// back a suggested { mode, type, amount, month, note } to prefill the Add
+// Entry form. Read-only — this never creates a transaction on its own.
+export async function parsePayslipDocument(file) {
+  if (!file || file.size > 5 * 1024 * 1024) throw new Error("Choose a PDF under 5 MB.");
+  if (file.type !== "application/pdf") throw new Error("Only PDF payslips are supported for auto-fill.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  const res = await request("/documents/parse-payslip", {
+    method: "POST",
+    body: JSON.stringify({ filename: file.name, contentType: file.type, data: btoa(binary) }),
+  });
+  return res.suggestion;
+}
+
 // Recurring transactions: ask the server to materialize this month's
 // entries from every template (recurring: true) the user has. Safe to call
 // more than once for the same month — already-generated entries are

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Card, Form, Row, Col, Button, Toast, ToastContainer } from "react-bootstrap";
-import { PlusCircle } from "lucide-react";
+import { Card, Form, Row, Col, Button, Toast, ToastContainer, Spinner, Alert } from "react-bootstrap";
+import { PlusCircle, Sparkles } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
+import { parsePayslipDocument } from "../../lib/api.js";
 
 const PLACEHOLDERS = {
   Income: "Salary, NATS…",
@@ -20,6 +21,34 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
   const [recurring, setRecurring] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [showToast, setShowToast] = useState(false);
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [autoFillError, setAutoFillError] = useState("");
+  const [autoFillNotice, setAutoFillNotice] = useState("");
+
+  // Optional: upload a payslip PDF and prefill the fields below from it.
+  // This never submits the form itself — the user still reviews the
+  // prefilled values and clicks "Add to ledger" like any other entry.
+  async function handleAutoFill(e) {
+    const file = e.target.files?.[0] || null;
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    setAutoFillError("");
+    setAutoFillNotice("");
+    setAutoFilling(true);
+    try {
+      const suggestion = await parsePayslipDocument(file);
+      setMode(suggestion.mode || "Income");
+      setType(suggestion.type || "Salary");
+      setAmount(String(suggestion.amount));
+      if (suggestion.month) setMonth(suggestion.month);
+      if (suggestion.note) setNote(suggestion.note);
+      setAutoFillNotice("Fields below were filled in from your payslip — check them over before saving.");
+    } catch (err) {
+      setAutoFillError(err.message || "Couldn't read that document.");
+    } finally {
+      setAutoFilling(false);
+    }
+  }
 
   function submit(e) {
     e.preventDefault();
@@ -40,6 +69,40 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
       <Card className="lg-card">
         <Card.Body className="p-4">
           <Form onSubmit={submit}>
+            <div className="border rounded p-3 mb-4">
+              <Form.Group>
+                <Form.Label className="small fw-semibold text-secondary d-flex align-items-center gap-2">
+                  <Sparkles size={15} />
+                  Auto-fill from a payslip (optional)
+                </Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="application/pdf"
+                  disabled={autoFilling}
+                  onChange={handleAutoFill}
+                />
+                <Form.Text>
+                  Upload a payslip PDF and we'll try to pull your in-hand/net salary and pay
+                  month into the fields below — nothing is saved until you submit.
+                </Form.Text>
+                {autoFilling && (
+                  <div className="small text-secondary mt-2 d-flex align-items-center gap-2">
+                    <Spinner animation="border" size="sm" /> Reading document…
+                  </div>
+                )}
+                {autoFillNotice && (
+                  <Alert variant="success" className="small mt-2 mb-0 py-2">
+                    {autoFillNotice}
+                  </Alert>
+                )}
+                {autoFillError && (
+                  <Alert variant="warning" className="small mt-2 mb-0 py-2">
+                    {autoFillError}
+                  </Alert>
+                )}
+              </Form.Group>
+            </div>
+
             <div className="d-flex gap-2 flex-wrap mb-4">
               {MODES.map((m) => {
                 const active = mode === m;
