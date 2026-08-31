@@ -75,6 +75,8 @@ export const investmentSchema = z.object({
   units: z.number().min(0).optional(),
   xirr: z.number().optional(),
   source: z.string().trim().optional().default("Manual entry"),
+  assetClass: z.enum(["Equity", "Debt", "Gold", "International", "Other"]).optional().default("Equity"),
+  benchmarkReturn: z.number().optional(),
 });
 
 // PUT allows partial updates.

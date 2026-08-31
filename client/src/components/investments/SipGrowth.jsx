@@ -56,7 +56,7 @@ const HISTORY_PAGE_SIZE = 8;
 
 export default function SipGrowth({ investments = [], onInvestmentAdded, onInvestmentUpdated }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "" });
+  const [form, setForm] = useState({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "", assetClass: "Equity", benchmarkReturn: "" });
   const [notice, setNotice] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
@@ -104,6 +104,8 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
       currentValue: isStatus && form.currentValue ? Number(form.currentValue) : Number(form.amount),
       date: form.date,
       monthly: 0,
+      assetClass: form.assetClass,
+      ...(form.benchmarkReturn ? { benchmarkReturn: Number(form.benchmarkReturn) } : {}),
       ...(isStatus && form.units ? { units: Number(form.units) } : {}),
       ...(isStatus && form.xirr ? { xirr: Number(form.xirr) } : {}),
     };
@@ -115,7 +117,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
       onInvestmentAdded?.({ ...payload, id: `local-${Date.now()}` });
       setNotice("Investment added locally. It will sync when the API is available.");
     }
-    setForm({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "" });
+    setForm({ fund: "", amount: "", currentValue: "", date: "", type: "Additional", units: "", xirr: "", assetClass: "Equity", benchmarkReturn: "" });
     setShowForm(false);
   }
 
@@ -175,6 +177,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
               <Row className="g-3 align-items-end">
                 <Col md={3}><Form.Label>Fund name</Form.Label><Form.Control value={form.fund} onChange={(e) => setForm({ ...form, fund: e.target.value })} required placeholder="e.g. HDFC Flexi Cap" /></Col>
                 <Col md={2}><Form.Label>Type</Form.Label><Form.Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option>SIP</option><option>Additional</option><option>Status</option></Form.Select></Col>
+                <Col md={2}><Form.Label>Asset class</Form.Label><Form.Select value={form.assetClass} onChange={(e) => setForm({ ...form, assetClass: e.target.value })}><option>Equity</option><option>Debt</option><option>Gold</option><option>International</option><option>Other</option></Form.Select></Col>
                 <Col md={2}><Form.Label>{form.type === "Status" ? "Invested to date (₹)" : "Amount (₹)"}</Form.Label><Form.Control type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></Col>
                 {form.type === "Status" && <Col md={2}><Form.Label>Valuation (₹)</Form.Label><Form.Control type="number" min="0" step="0.01" value={form.currentValue} onChange={(e) => setForm({ ...form, currentValue: e.target.value })} placeholder="Current value" /></Col>}
                 <Col md={2}><Form.Label>Date</Form.Label><Form.Control type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></Col>
@@ -184,6 +187,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                     <Col md={2}><Form.Label>XIRR (%)</Form.Label><Form.Control type="number" step="0.01" value={form.xirr} onChange={(e) => setForm({ ...form, xirr: e.target.value })} placeholder="e.g. 17.94" /></Col>
                   </>
                 )}
+                {form.type === "Status" && <Col md={2}><Form.Label>Benchmark return (%)</Form.Label><Form.Control type="number" step="0.01" value={form.benchmarkReturn} onChange={(e) => setForm({ ...form, benchmarkReturn: e.target.value })} placeholder="Optional" /></Col>}
                 <Col md={2}><Button type="submit" className="w-100">Save</Button></Col>
               </Row>
               {form.type === "Status" && <Form.Text className="text-secondary d-block mt-2">A Status entry replaces this fund's current numbers on this page — it doesn't add to your monthly SIP total. Record a new one whenever you check your portfolio.</Form.Text>}

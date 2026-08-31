@@ -29,6 +29,14 @@ export const fetchTransactions = async () => (await request("/transactions")).ma
 export const createTransaction = async (data) => withId(await request("/transactions", { method: "POST", body: JSON.stringify(data) }));
 export const editTransaction = async (id, data) => withId(await request(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 export const removeTransaction = (id) => request(`/transactions/${id}`, { method: "DELETE" });
+export async function uploadTransactionReceipt(transactionId, file) {
+  if (!file || file.size > 5 * 1024 * 1024) throw new Error("Choose a JPEG, PNG, or PDF under 5 MB.");
+  if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) throw new Error("Only JPEG, PNG, and PDF receipts are supported.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return request(`/transactions/${transactionId}/receipts`, { method: "POST", body: JSON.stringify({ filename: file.name, contentType: file.type, data: btoa(binary) }) });
+}
 
 // Recurring transactions: ask the server to materialize this month's
 // entries from every template (recurring: true) the user has. Safe to call

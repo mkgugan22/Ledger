@@ -4,10 +4,11 @@ import Valuation from "./models/Valuation.js";
 import Transaction from "./models/Transaction.js";
 import Budget from "./models/Budget.js";
 import Investment from "./models/Investment.js";
+import Receipt from "./models/Receipt.js";
 
 dotenv.config();
 await connectDB();
 try { await Valuation.collection.dropIndex("month_1_instrument_1"); } catch (err) { if (err.codeName !== "IndexNotFound") throw err; }
-await Promise.all([Valuation.syncIndexes(), Transaction.syncIndexes(), Budget.syncIndexes(), Investment.syncIndexes()]);
+await Promise.all([Valuation.syncIndexes(), Transaction.syncIndexes(), Budget.syncIndexes(), Investment.syncIndexes(), Receipt.syncIndexes()]);
 console.log("Ledger indexes updated.");
 process.exit(0);

@@ -8,6 +8,7 @@ import authRouter from "./routes/auth.js";
 import investmentsRouter from "./routes/investments.js";
 import marketRouter from "./routes/market.js";
 import budgetsRouter from "./routes/budgets.js";
+import receiptsRouter from "./routes/receipts.js";
 import { requireAuth } from "./middleware/auth.js";
 
 // Builds and returns the configured Express app without connecting to a
@@ -34,6 +35,7 @@ export function createApp() {
   app.use(requireAuth);
   app.use("/api/market", marketRouter);
   app.use("/api/transactions", transactionsRouter);
+  app.use("/api/transactions/:id/receipts", receiptsRouter);
   app.use("/api/valuations", valuationsRouter);
   app.use("/api/investments", investmentsRouter);
   app.use("/api/budgets", budgetsRouter);

@@ -15,12 +15,14 @@ import MonthPicker from "../shared/MonthPicker.jsx";
 import EmptyState from "../shared/EmptyState.jsx";
 import { MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
+import Alerts from "./Alerts.jsx";
 
 export default function Dashboard({
   selectedMonth,
   setSelectedMonth,
   totals,
   categoryChartData,
+  alerts = [],
 }) {
   const cards = [
     { label: "Income", value: totals.Income, icon: TrendingUp, color: MODE_COLOR.Income },
@@ -54,6 +56,7 @@ export default function Dashboard({
           </Col>
         ))}
       </Row>
+      <Alerts alerts={alerts} />
 
       <div className="lg-inhand-bar d-flex justify-content-between align-items-center px-4 py-3 mb-4">
         <span className="font-serif">In hand this month</span>

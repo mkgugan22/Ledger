@@ -15,6 +15,8 @@ const investmentSchema = new mongoose.Schema({
   units: { type: Number, min: 0 },
   xirr: { type: Number },
   source: { type: String, default: "Manual entry" },
+  assetClass: { type: String, enum: ["Equity", "Debt", "Gold", "International", "Other"], default: "Equity" },
+  benchmarkReturn: { type: Number },
 }, { timestamps: true });
 
 export default mongoose.model("Investment", investmentSchema);

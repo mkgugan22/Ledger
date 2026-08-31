@@ -25,9 +25,11 @@ import {
   importTransactionsCSV,
   upsertBudget,
   removeBudget,
+  uploadTransactionReceipt,
 } from "./lib/api.js";
 import { currentMonth } from "./lib/format.js";
 import { MODES } from "./lib/constants.js";
+import { buildAlerts } from "./lib/alerts.js";
 
 function Protected({ children, user }) {
   return user ? children : <Navigate to="/login" replace />;
@@ -72,11 +74,13 @@ export default function App() {
   const categoryChartData = useMemo(() => { const byType = {}; monthTx.filter((t) => t.mode !== "Income").forEach((t) => { const key = t.type || "(untitled)"; byType[key] = byType[key] || { name: key, amount: 0, mode: t.mode }; byType[key].amount += Number(t.amount || 0); }); return Object.values(byType).sort((a, b) => b.amount - a.amount); }, [monthTx]);
   const instrumentNames = useMemo(() => { const s = new Set(["SIP", "Digi Gold", "Box Savings", "Account"]); valuations.forEach((v) => s.add(v.instrument)); return Array.from(s); }, [valuations]);
   const trendData = useMemo(() => { const months = Array.from(new Set(valuations.map((v) => v.month))).sort(); return months.map((m) => { const row = { month: m }; instrumentNames.forEach((inst) => { const entry = valuations.find((v) => v.month === m && v.instrument === inst); if (entry) row[inst] = Number(entry.value); }); return row; }); }, [valuations, instrumentNames]);
+  const alerts = useMemo(() => buildAlerts({ month: selectedMonth, transactions, budgets, investments }), [selectedMonth, transactions, budgets, investments]);
 
-  const addTransaction = useCallback(async (entry) => {
+  const addTransaction = useCallback(async (entry, receipt) => {
     try {
       const doc = await createTransaction(entry);
       setTransactions((prev) => [...prev, doc]);
+      if (receipt) await uploadTransactionReceipt(doc.id, receipt);
     } catch (err) {
       setApiError(`Couldn't save that entry (${err.message}).`);
     }
@@ -141,7 +145,7 @@ export default function App() {
     categoryChartData, typeHints, valuations, instrumentNames, trendData,
     addTransaction, updateTransaction, deleteTransaction, addValuation, deleteValuation,
     generateRecurring, exportCSV, importCSV,
-    monthBudgets, addBudget, deleteBudget,
+    monthBudgets, addBudget, deleteBudget, alerts,
   };
 
   const addInvestmentItem = useCallback((item) => setInvestments((prev) => [...prev, item]), []);
