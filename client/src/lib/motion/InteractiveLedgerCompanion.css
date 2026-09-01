@@ -1,30 +1,39 @@
 /*
  * Interactive Ledger Companion
  *
- * This layer is completely visual.
- *
  * IMPORTANT:
- * pointer-events: none
- * means it can NEVER block:
- *   - buttons
- *   - inputs
- *   - selects
- *   - links
- *   - scrolling
- *   - forms
+ * The companion is deliberately small and positioned outside
+ * the normal document flow.
  *
- * The existing Ledger UI remains in control.
+ * pointer-events: none ensures that the companion can NEVER
+ * block an existing:
+ * - input
+ * - button
+ * - link
+ * - dropdown
+ * - table
+ * - card
+ * - form
  */
 
 .ilc-root {
   position: fixed;
-  right: 22px;
-  bottom: 18px;
-  width: 190px;
-  height: 230px;
-  z-index: 9990;
+
+  /*
+   * Keep it above the very bottom browser/deployment badge
+   * and away from the main form content.
+   */
+  right: 10px;
+  bottom: 62px;
+
+  width: 112px;
+  height: 126px;
+
+  z-index: 9000;
+
   pointer-events: none;
   user-select: none;
+
   font-family:
     Inter,
     system-ui,
@@ -34,85 +43,127 @@
     sans-serif;
 
   --ilc-ink: #25352f;
-  --ilc-muted: #60726b;
   --ilc-paper: #fffdf8;
   --ilc-green: #3e6259;
-  --ilc-green-light: #6e9185;
+  --ilc-green-dark: #304f48;
+  --ilc-skin: #edcda9;
+  --ilc-skin-light: #fff0d7;
   --ilc-brass: #9c8660;
-  --ilc-rule: rgba(62, 98, 89, 0.16);
-}
-
-.ilc-glow {
-  position: absolute;
-  right: 15px;
-  bottom: 12px;
-  width: 135px;
-  height: 135px;
-  border-radius: 50%;
-  background:
-    radial-gradient(
-      circle,
-      rgba(156, 134, 96, 0.16) 0%,
-      rgba(156, 134, 96, 0.06) 42%,
-      transparent 72%
-    );
-  filter: blur(2px);
-  animation: ilc-glow-pulse 3.8s ease-in-out infinite;
-}
-
-.ilc-character {
-  position: absolute;
-  right: 22px;
-  bottom: 2px;
-  width: 125px;
-  height: 185px;
-  transform-origin: bottom center;
-  animation: ilc-idle-float 3.8s ease-in-out infinite;
+  --ilc-red: #9b625d;
 }
 
 /* -------------------------------------------------------
-   SPEECH
+   SOFT GLOW
+------------------------------------------------------- */
+
+.ilc-glow {
+  position: absolute;
+
+  right: 5px;
+  bottom: 2px;
+
+  width: 82px;
+  height: 82px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(156, 134, 96, 0.13) 0%,
+      rgba(156, 134, 96, 0.04) 45%,
+      transparent 72%
+    );
+
+  filter: blur(2px);
+
+  animation:
+    ilc-glow-pulse 4s ease-in-out infinite;
+}
+
+/* -------------------------------------------------------
+   SPEECH BUBBLE
 ------------------------------------------------------- */
 
 .ilc-speech {
   position: absolute;
-  right: 2px;
-  top: 4px;
-  width: 168px;
-  min-height: 38px;
-  padding: 9px 13px;
+
+  top: 0;
+  right: 0;
+
+  width: 108px;
+  min-height: 28px;
+
+  box-sizing: border-box;
+
+  padding: 6px 8px;
 
   background: var(--ilc-paper);
-  border: 1px solid var(--ilc-rule);
-  border-radius: 15px 15px 4px 15px;
+
+  border: 1px solid rgba(62, 98, 89, 0.14);
+
+  border-radius:
+    11px
+    11px
+    3px
+    11px;
 
   color: var(--ilc-ink);
-  font-size: 11px;
-  line-height: 1.35;
+
+  font-size: 8.5px;
+  line-height: 1.25;
+
   text-align: center;
 
   box-shadow:
-    0 8px 28px rgba(37, 53, 47, 0.08),
-    0 2px 7px rgba(37, 53, 47, 0.05);
+    0 5px 18px rgba(37, 53, 47, 0.09),
+    0 1px 5px rgba(37, 53, 47, 0.05);
 
   transform-origin: bottom right;
-  animation: ilc-speech-in 0.28s ease-out both;
+
+  animation:
+    ilc-speech-in 0.24s ease-out both;
 }
 
 .ilc-speech::after {
   content: "";
-  position: absolute;
-  right: 20px;
-  bottom: -7px;
 
-  width: 12px;
-  height: 12px;
+  position: absolute;
+
+  right: 13px;
+  bottom: -5px;
+
+  width: 8px;
+  height: 8px;
 
   background: var(--ilc-paper);
-  border-right: 1px solid var(--ilc-rule);
-  border-bottom: 1px solid var(--ilc-rule);
+
+  border-right:
+    1px solid rgba(62, 98, 89, 0.14);
+
+  border-bottom:
+    1px solid rgba(62, 98, 89, 0.14);
 
   transform: rotate(45deg);
+}
+
+/* -------------------------------------------------------
+   CHARACTER
+------------------------------------------------------- */
+
+.ilc-character {
+  position: absolute;
+
+  right: 12px;
+  bottom: 0;
+
+  width: 74px;
+  height: 91px;
+
+  transform-origin: bottom center;
+
+  animation:
+    ilc-idle-float 4s ease-in-out infinite;
 }
 
 /* -------------------------------------------------------
@@ -121,52 +172,74 @@
 
 .ilc-face {
   position: absolute;
-  top: 34px;
-  left: 22px;
-  width: 82px;
-  height: 77px;
+
+  top: 21px;
+  left: 14px;
+
+  width: 48px;
+  height: 46px;
+
   z-index: 5;
+
   transform-origin: center bottom;
-  animation: ilc-head-idle 4s ease-in-out infinite;
+
+  animation:
+    ilc-head-idle 4s ease-in-out infinite;
 }
 
 .ilc-head {
   position: absolute;
-  inset: 4px 3px 0;
-  border-radius: 47% 47% 45% 45%;
+
+  inset: 2px 2px 0;
+
+  border-radius:
+    47%
+    47%
+    45%
+    45%;
 
   background:
     linear-gradient(
       145deg,
-      #fff7e8 0%,
+      var(--ilc-skin-light) 0%,
       #f5dfbf 48%,
-      #e8c69d 100%
+      var(--ilc-skin) 100%
     );
 
-  border: 2px solid rgba(92, 67, 46, 0.16);
+  border:
+    1px solid rgba(92, 67, 46, 0.15);
 
   box-shadow:
-    inset -7px -8px 0 rgba(111, 72, 44, 0.055),
-    0 6px 10px rgba(37, 53, 47, 0.08);
+    inset -4px -5px 0 rgba(111, 72, 44, 0.05),
+    0 3px 7px rgba(37, 53, 47, 0.08);
 }
+
+/* -------------------------------------------------------
+   EARS
+------------------------------------------------------- */
 
 .ilc-ear {
   position: absolute;
-  top: 29px;
-  width: 11px;
-  height: 22px;
+
+  top: 17px;
+
+  width: 7px;
+  height: 13px;
+
   border-radius: 50%;
 
-  background: #edcda9;
-  border: 2px solid rgba(92, 67, 46, 0.12);
+  background: var(--ilc-skin);
+
+  border:
+    1px solid rgba(92, 67, 46, 0.12);
 }
 
 .ilc-ear-left {
-  left: -4px;
+  left: -1px;
 }
 
 .ilc-ear-right {
-  right: -4px;
+  right: -1px;
 }
 
 /* -------------------------------------------------------
@@ -175,43 +248,60 @@
 
 .ilc-eye {
   position: absolute;
-  top: 29px;
-  width: 9px;
-  height: 13px;
+
+  top: 17px;
+
+  width: 6px;
+  height: 9px;
+
   border-radius: 50%;
+
   background: var(--ilc-ink);
-  transform-origin: center center;
-  animation: ilc-blink 5.2s infinite;
+
+  transform-origin: center;
+
+  animation:
+    ilc-blink 5.5s infinite;
 }
 
 .ilc-eye-left {
-  left: 21px;
+  left: 12px;
 }
 
 .ilc-eye-right {
-  right: 21px;
+  right: 12px;
 }
 
 .ilc-eye::after {
   content: "";
+
   position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 3px;
-  height: 3px;
+
+  left: 1.5px;
+  top: 1.5px;
+
+  width: 2px;
+  height: 2px;
+
   border-radius: 50%;
+
   background: white;
 }
 
 .ilc-eye-happy {
-  height: 5px;
-  border-radius: 8px 8px 2px 2px;
-  top: 33px;
+  height: 3px;
+
+  border-radius:
+    7px
+    7px
+    2px
+    2px;
+
+  top: 20px;
 }
 
-.ilc-eye-curious {
-  height: 15px;
-  transform: scaleY(1.12);
+.ilc-eye-sad {
+  height: 8px;
 }
 
 /* -------------------------------------------------------
@@ -220,30 +310,50 @@
 
 .ilc-brow {
   position: absolute;
-  top: 22px;
-  width: 18px;
-  height: 3px;
+
+  top: 13px;
+
+  width: 11px;
+  height: 2px;
+
   border-radius: 999px;
-  background: rgba(55, 43, 35, 0.68);
-  transition: transform 0.25s ease;
+
+  background: rgba(55, 43, 35, 0.65);
+
+  transition:
+    transform 0.2s ease;
 }
 
 .ilc-brow-left {
-  left: 17px;
+  left: 9px;
+
   transform: rotate(5deg);
 }
 
 .ilc-brow-right {
-  right: 17px;
+  right: 9px;
+
   transform: rotate(-5deg);
 }
 
-.ilc-brow-raised.ilc-brow-left {
-  transform: translateY(-4px) rotate(-9deg);
+.ilc-brow-raised-left {
+  transform:
+    translateY(-2px)
+    rotate(-8deg);
 }
 
-.ilc-brow-raised.ilc-brow-right {
-  transform: translateY(-4px) rotate(9deg);
+.ilc-brow-raised-right {
+  transform:
+    translateY(-2px)
+    rotate(8deg);
+}
+
+.ilc-brow-sad-left {
+  transform: rotate(-14deg);
+}
+
+.ilc-brow-sad-right {
+  transform: rotate(14deg);
 }
 
 /* -------------------------------------------------------
@@ -252,27 +362,57 @@
 
 .ilc-mouth {
   position: absolute;
+
   left: 50%;
-  top: 49px;
-  width: 17px;
-  height: 7px;
+  top: 30px;
+
+  width: 10px;
+  height: 4px;
 
   transform: translateX(-50%);
 
-  border-bottom: 3px solid var(--ilc-ink);
-  border-radius: 0 0 50% 50%;
+  border-bottom:
+    2px solid var(--ilc-ink);
+
+  border-radius:
+    0
+    0
+    50%
+    50%;
 }
 
 .ilc-mouth-happy {
-  width: 22px;
-  height: 11px;
-  border-bottom-width: 4px;
+  width: 13px;
+  height: 6px;
+
+  border-bottom-width: 2px;
+}
+
+.ilc-mouth-sad {
+  width: 10px;
+  height: 5px;
+
+  border-bottom: none;
+
+  border-top:
+    2px solid var(--ilc-red);
+
+  border-radius:
+    50%
+    50%
+    0
+    0;
+
+  top: 32px;
 }
 
 .ilc-mouth-listening {
-  width: 9px;
-  height: 9px;
-  border: 3px solid var(--ilc-ink);
+  width: 6px;
+  height: 6px;
+
+  border:
+    2px solid var(--ilc-ink);
+
   border-radius: 50%;
 }
 
@@ -282,19 +422,24 @@
 
 .ilc-cheek {
   position: absolute;
-  top: 45px;
-  width: 11px;
-  height: 6px;
+
+  top: 29px;
+
+  width: 7px;
+  height: 4px;
+
   border-radius: 50%;
-  background: rgba(214, 125, 105, 0.16);
+
+  background:
+    rgba(214, 125, 105, 0.15);
 }
 
 .ilc-cheek-left {
-  left: 8px;
+  left: 4px;
 }
 
 .ilc-cheek-right {
-  right: 8px;
+  right: 4px;
 }
 
 /* -------------------------------------------------------
@@ -303,57 +448,78 @@
 
 .ilc-character-body {
   position: absolute;
-  left: 18px;
+
+  left: 9px;
   bottom: 0;
-  width: 91px;
-  height: 103px;
+
+  width: 56px;
+  height: 51px;
 }
 
 .ilc-neck {
   position: absolute;
-  left: 38px;
-  top: -4px;
-  width: 16px;
-  height: 19px;
-  border-radius: 5px;
-  background: #edcda9;
+
+  left: 24px;
+  top: -1px;
+
+  width: 9px;
+  height: 10px;
+
+  border-radius: 3px;
+
+  background: var(--ilc-skin);
+
   z-index: 1;
 }
 
 .ilc-body {
   position: absolute;
-  left: 9px;
-  top: 10px;
-  width: 74px;
-  height: 91px;
 
-  border-radius: 29px 29px 14px 14px;
+  left: 5px;
+  top: 6px;
+
+  width: 46px;
+  height: 45px;
+
+  border-radius:
+    16px
+    16px
+    7px
+    7px;
 
   background:
     linear-gradient(
       135deg,
       #557b70 0%,
-      #3e6259 55%,
-      #304f48 100%
+      var(--ilc-green) 55%,
+      var(--ilc-green-dark) 100%
     );
 
-  border: 2px solid rgba(38, 68, 61, 0.18);
+  border:
+    1px solid rgba(38, 68, 61, 0.18);
 
   box-shadow:
-    inset 7px 0 rgba(255, 255, 255, 0.055),
-    0 7px 12px rgba(37, 53, 47, 0.11);
+    inset 4px 0 rgba(255, 255, 255, 0.05),
+    0 4px 7px rgba(37, 53, 47, 0.1);
 }
 
 .ilc-shirt-detail {
   position: absolute;
+
   left: 50%;
-  top: 14px;
-  width: 20px;
-  height: 30px;
+  top: 7px;
+
+  width: 12px;
+  height: 18px;
+
   transform: translateX(-50%);
 
-  border-left: 2px solid rgba(255, 255, 255, 0.15);
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-left:
+    1px solid rgba(255, 255, 255, 0.14);
+
+  border-right:
+    1px solid rgba(255, 255, 255, 0.14);
+
   border-radius: 50%;
 }
 
@@ -363,10 +529,13 @@
 
 .ilc-arm {
   position: absolute;
-  top: 19px;
-  width: 20px;
-  height: 65px;
-  border-radius: 15px;
+
+  top: 10px;
+
+  width: 11px;
+  height: 32px;
+
+  border-radius: 9px;
 
   background:
     linear-gradient(
@@ -376,52 +545,41 @@
     );
 
   transform-origin: top center;
+
   z-index: 3;
 }
 
 .ilc-arm-left {
-  left: -2px;
+  left: -1px;
+
   transform: rotate(9deg);
 }
 
 .ilc-arm-right {
-  right: -2px;
+  right: -1px;
+
   transform: rotate(-9deg);
 }
 
 .ilc-hand {
   position: absolute;
-  bottom: -7px;
-  left: 1px;
-  width: 18px;
-  height: 18px;
+
+  bottom: -4px;
+  left: 0;
+
+  width: 10px;
+  height: 10px;
+
   border-radius: 50%;
 
-  background: #edcda9;
-  border: 1px solid rgba(92, 67, 46, 0.12);
+  background: var(--ilc-skin);
+
+  border:
+    1px solid rgba(92, 67, 46, 0.1);
 }
 
 .ilc-hand span {
-  position: absolute;
-  width: 5px;
-  height: 9px;
-  bottom: 1px;
-  border-radius: 8px;
-  background: #edcda9;
-}
-
-.ilc-hand span:nth-child(1) {
-  left: 2px;
-  transform: rotate(15deg);
-}
-
-.ilc-hand span:nth-child(2) {
-  left: 6px;
-}
-
-.ilc-hand span:nth-child(3) {
-  left: 10px;
-  transform: rotate(-15deg);
+  display: none;
 }
 
 /* -------------------------------------------------------
@@ -430,26 +588,27 @@
 
 .ilc-shadow {
   position: absolute;
-  left: 8px;
-  bottom: -2px;
-  width: 110px;
-  height: 13px;
+
+  left: 2px;
+  bottom: -1px;
+
+  width: 67px;
+  height: 7px;
+
   border-radius: 50%;
 
-  background: rgba(37, 53, 47, 0.13);
-  filter: blur(4px);
+  background:
+    rgba(37, 53, 47, 0.12);
 
-  animation: ilc-shadow-pulse 3.8s ease-in-out infinite;
+  filter: blur(2px);
+
+  animation:
+    ilc-shadow-pulse 4s ease-in-out infinite;
 }
 
 /* -------------------------------------------------------
-   CHARACTER REACTIONS
+   MOODS
 ------------------------------------------------------- */
-
-.ilc-mood-idle .ilc-character {
-  animation:
-    ilc-idle-float 3.8s ease-in-out infinite;
-}
 
 .ilc-mood-thinking .ilc-character {
   animation:
@@ -467,9 +626,14 @@
 }
 
 .ilc-mood-happy .ilc-character,
+.ilc-mood-very-happy .ilc-character {
+  animation:
+    ilc-happy 0.8s ease-in-out infinite;
+}
+
 .ilc-mood-excited .ilc-character {
   animation:
-    ilc-happy-bounce 0.75s ease-in-out infinite;
+    ilc-excited 0.65s ease-in-out infinite;
 }
 
 .ilc-mood-celebrate .ilc-character {
@@ -477,10 +641,20 @@
     ilc-celebrate 0.7s ease-in-out infinite;
 }
 
-.ilc-mood-happy .ilc-arm-right,
-.ilc-mood-excited .ilc-arm-right {
+.ilc-mood-sad .ilc-character {
   animation:
-    ilc-wave 0.75s ease-in-out infinite;
+    ilc-sad 2.1s ease-in-out infinite;
+}
+
+.ilc-mood-concerned .ilc-character {
+  animation:
+    ilc-concerned 1.8s ease-in-out infinite;
+}
+
+.ilc-mood-happy .ilc-arm-right,
+.ilc-mood-very-happy .ilc-arm-right {
+  animation:
+    ilc-wave 0.8s ease-in-out infinite;
 }
 
 .ilc-mood-celebrate .ilc-arm-right {
@@ -493,80 +667,70 @@
     ilc-celebrate-arm-left 0.45s ease-in-out infinite;
 }
 
-.ilc-mood-curious .ilc-face {
-  animation:
-    ilc-curious-head 1.3s ease-in-out infinite;
-}
-
-.ilc-mood-thinking .ilc-face {
-  animation:
-    ilc-thinking-head 1.4s ease-in-out infinite;
-}
-
 /* -------------------------------------------------------
    CELEBRATION
 ------------------------------------------------------- */
 
 .ilc-celebration {
   position: absolute;
-  left: 0;
-  top: 22px;
-  width: 125px;
-  height: 100px;
+
+  left: -5px;
+  top: 15px;
+
+  width: 75px;
+  height: 60px;
+
   z-index: 8;
 }
 
 .ilc-star {
   position: absolute;
+
   color: var(--ilc-brass);
-  font-size: 15px;
+
+  font-size: 9px;
+
   opacity: 0;
+
   animation:
     ilc-star-pop 0.9s ease-out infinite;
 }
 
 .ilc-star-1 {
-  left: 2px;
-  top: 35px;
-  animation-delay: 0s;
+  left: 0;
+  top: 20px;
 }
 
 .ilc-star-2 {
-  right: 2px;
-  top: 28px;
-  animation-delay: 0.14s;
+  right: 0;
+  top: 15px;
+
+  animation-delay: 0.2s;
 }
 
 .ilc-star-3 {
-  left: 22px;
-  top: 2px;
-  animation-delay: 0.28s;
-}
+  left: 34px;
+  top: 0;
 
-.ilc-star-4 {
-  right: 25px;
-  top: 5px;
-  animation-delay: 0.42s;
-}
-
-.ilc-star-5 {
-  left: 54px;
-  top: -8px;
-  animation-delay: 0.56s;
+  animation-delay: 0.4s;
 }
 
 /* -------------------------------------------------------
-   KEYFRAMES
+   ANIMATIONS
 ------------------------------------------------------- */
 
 @keyframes ilc-idle-float {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform:
+      translateY(0)
+      rotate(0deg);
   }
 
   50% {
-    transform: translateY(-5px) rotate(-1deg);
+    transform:
+      translateY(-2px)
+      rotate(-1deg);
   }
 }
 
@@ -598,13 +762,13 @@
 @keyframes ilc-glow-pulse {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: 0.55;
     transform: scale(0.95);
   }
 
   50% {
-    opacity: 1;
-    transform: scale(1.08);
+    opacity: 0.9;
+    transform: scale(1.04);
   }
 }
 
@@ -612,68 +776,56 @@
   0%,
   100% {
     transform: scaleX(1);
-    opacity: 0.13;
   }
 
   50% {
-    transform: scaleX(0.86);
-    opacity: 0.08;
+    transform: scaleX(0.85);
   }
 }
 
 @keyframes ilc-speech-in {
   0% {
     opacity: 0;
-    transform: translateY(7px) scale(0.94);
+    transform:
+      translateY(4px)
+      scale(0.95);
   }
 
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform:
+      translateY(0)
+      scale(1);
   }
 }
 
 @keyframes ilc-thinking {
   0%,
   100% {
-    transform: rotate(0deg) translateY(0);
+    transform:
+      rotate(0deg)
+      translateY(0);
   }
 
   50% {
-    transform: rotate(-3deg) translateY(-3px);
-  }
-}
-
-@keyframes ilc-thinking-head {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-
-  50% {
-    transform: rotate(-7deg);
+    transform:
+      rotate(-3deg)
+      translateY(-2px);
   }
 }
 
 @keyframes ilc-curious {
   0%,
   100% {
-    transform: rotate(0deg) translateY(0);
+    transform:
+      rotate(0deg)
+      translateY(0);
   }
 
   50% {
-    transform: rotate(4deg) translateY(-3px);
-  }
-}
-
-@keyframes ilc-curious-head {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-
-  50% {
-    transform: rotate(8deg);
+    transform:
+      rotate(3deg)
+      translateY(-2px);
   }
 }
 
@@ -684,37 +836,75 @@
   }
 
   50% {
-    transform: translateY(-4px);
+    transform: translateY(-2px);
   }
 }
 
-@keyframes ilc-happy-bounce {
+@keyframes ilc-happy {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform:
+      translateY(0)
+      rotate(0deg);
   }
 
   25% {
-    transform: translateY(-8px) rotate(-2deg);
+    transform:
+      translateY(-4px)
+      rotate(-2deg);
   }
 
   75% {
-    transform: translateY(-5px) rotate(2deg);
+    transform:
+      translateY(-2px)
+      rotate(2deg);
   }
 }
 
-@keyframes ilc-celebrate {
+@keyframes ilc-excited {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg) scale(1);
+    transform:
+      translateY(0)
+      rotate(0deg)
+      scale(1);
   }
 
-  30% {
-    transform: translateY(-12px) rotate(-5deg) scale(1.02);
+  50% {
+    transform:
+      translateY(-5px)
+      rotate(3deg)
+      scale(1.02);
+  }
+}
+
+@keyframes ilc-sad {
+  0%,
+  100% {
+    transform:
+      translateY(1px)
+      rotate(0deg);
   }
 
-  70% {
-    transform: translateY(-8px) rotate(5deg) scale(1.02);
+  50% {
+    transform:
+      translateY(4px)
+      rotate(-3deg);
+  }
+}
+
+@keyframes ilc-concerned {
+  0%,
+  100% {
+    transform:
+      translateY(0)
+      rotate(0deg);
+  }
+
+  50% {
+    transform:
+      translateY(2px)
+      rotate(-2deg);
   }
 }
 
@@ -725,7 +915,31 @@
   }
 
   50% {
-    transform: rotate(-28deg);
+    transform: rotate(-25deg);
+  }
+}
+
+@keyframes ilc-celebrate {
+  0%,
+  100% {
+    transform:
+      translateY(0)
+      rotate(0deg)
+      scale(1);
+  }
+
+  30% {
+    transform:
+      translateY(-7px)
+      rotate(-4deg)
+      scale(1.02);
+  }
+
+  70% {
+    transform:
+      translateY(-5px)
+      rotate(4deg)
+      scale(1.02);
   }
 }
 
@@ -736,7 +950,7 @@
   }
 
   50% {
-    transform: rotate(-55deg);
+    transform: rotate(-45deg);
   }
 }
 
@@ -747,24 +961,33 @@
   }
 
   50% {
-    transform: rotate(55deg);
+    transform: rotate(45deg);
   }
 }
 
 @keyframes ilc-star-pop {
   0% {
     opacity: 0;
-    transform: scale(0.2) translateY(10px) rotate(0deg);
+    transform:
+      scale(0.2)
+      translateY(6px)
+      rotate(0deg);
   }
 
   35% {
     opacity: 1;
-    transform: scale(1.2) translateY(-4px) rotate(35deg);
+    transform:
+      scale(1.1)
+      translateY(-2px)
+      rotate(30deg);
   }
 
   100% {
     opacity: 0;
-    transform: scale(0.75) translateY(-20px) rotate(80deg);
+    transform:
+      scale(0.7)
+      translateY(-13px)
+      rotate(70deg);
   }
 }
 
@@ -772,53 +995,39 @@
    RESPONSIVE
 ------------------------------------------------------- */
 
-/*
- * Desktop:
- * character stays in the bottom-right corner.
- *
- * Tablet:
- * make it slightly smaller.
- *
- * Mobile:
- * keep the interaction visible but compact so it doesn't
- * consume meaningful form space.
- */
-
 @media (max-width: 991.98px) {
   .ilc-root {
-    right: 12px;
-    bottom: 10px;
-    transform: scale(0.88);
+    right: 8px;
+    bottom: 58px;
+
+    transform: scale(0.9);
     transform-origin: bottom right;
   }
 }
 
 @media (max-width: 575.98px) {
   .ilc-root {
-    right: 6px;
-    bottom: 6px;
-    width: 150px;
-    height: 190px;
-    transform: scale(0.72);
-    transform-origin: bottom right;
-  }
+    right: 5px;
+    bottom: 55px;
 
-  .ilc-speech {
-    width: 150px;
+    width: 98px;
+    height: 112px;
+
+    transform: scale(0.78);
+    transform-origin: bottom right;
   }
 }
 
 /*
- * Respect users who have requested reduced motion.
- *
- * The companion remains visible but becomes static.
+ * If the user has requested reduced motion,
+ * keep the character visible but static.
  */
+
 @media (prefers-reduced-motion: reduce) {
   .ilc-root *,
   .ilc-root *::before,
   .ilc-root *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 }
