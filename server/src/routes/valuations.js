@@ -10,7 +10,8 @@ const router = Router();
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const list = await Valuation.find({ user: req.userId }).sort({ month: 1 });
+    // .lean() — read-only response, skip full Mongoose document hydration.
+    const list = await Valuation.find({ user: req.userId }).sort({ month: 1 }).lean();
     res.json(list);
   })
 );
