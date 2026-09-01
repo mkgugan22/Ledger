@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Card, Form, Alert } from "react-bootstrap";
 import { Landmark, LockKeyhole } from "lucide-react";
 import { login, register } from "../../lib/api.js";
+import LedgerHeroBackground from "../../lib/motion/LedgerHeroBackground.jsx";
 
 export default function Login({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
@@ -29,7 +30,8 @@ export default function Login({ onAuthenticated }) {
 
   return (
     <main className="lg-auth-shell d-flex align-items-center justify-content-center p-3">
-      <Card className="lg-auth-card shadow-sm">
+      <LedgerHeroBackground />
+      <Card className="lg-auth-card shadow-sm" style={{ position: "relative", zIndex: 1 }}>
         <Card.Body className="p-4 p-md-5">
           <div className="text-center mb-4">
             <Landmark size={30} color="var(--lg-brass)" />
