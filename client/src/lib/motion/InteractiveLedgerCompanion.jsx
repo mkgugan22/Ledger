@@ -2,35 +2,33 @@ import { useEffect, useState } from "react";
 import "./InteractiveLedgerCompanion.css";
 
 /*
- * InteractiveLedgerCompanion
+ * Interactive Ledger Companion
  *
- * IMPORTANT:
- * This component is intentionally independent from Ledger's application state.
+ * UI-ONLY component.
  *
- * It only observes DOM events:
- *   - focusin
- *   - focusout
- *   - input
- *   - change
- *   - submit
+ * It observes existing DOM events and NEVER:
+ * - changes input values
+ * - changes React state belonging to pages
+ * - prevents form submission
+ * - stops event propagation
+ * - calls APIs
+ * - changes routes
+ * - changes existing layout dimensions
  *
- * It never:
- *   - modifies an input value
- *   - calls preventDefault()
- *   - calls stopPropagation()
- *   - changes application state
- *   - communicates with the API
- *   - changes routes
- *
- * Therefore it is safe to mount globally in Layout.jsx.
+ * It is purely an animated visual companion.
  */
 
-const INITIAL_STATE = {
+const LARGE_EXPENSE_THRESHOLD = 20000;
+
+const DEFAULT_STATE = {
   mood: "idle",
   message: "I'm here with you.",
-  fieldType: "",
-  hasValue: false,
+  context: "neutral",
 };
+
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
 function getFieldLabel(element) {
   if (!element) return "";
@@ -47,15 +45,33 @@ function getFieldLabel(element) {
   const id = element.getAttribute("id");
 
   if (id) {
-    const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
-    if (label?.textContent) {
-      return label.textContent.trim();
+    try {
+      const label = document.querySelector(
+        `label[for="${CSS.escape(id)}"]`
+      );
+
+      if (label?.textContent) {
+        return label.textContent.trim();
+      }
+    } catch {
+      // Ignore selector issues.
     }
   }
 
   const parentLabel = element.closest("label");
+
   if (parentLabel?.textContent) {
     return parentLabel.textContent.trim();
+  }
+
+  const group = element.closest(".form-group");
+
+  if (group) {
+    const label = group.querySelector("label");
+
+    if (label?.textContent) {
+      return label.textContent.trim();
+    }
   }
 
   return "";
@@ -66,25 +82,32 @@ function getFieldType(element) {
 
   const tag = element.tagName?.toLowerCase();
 
-  if (tag === "select") {
-    return "select";
-  }
-
-  if (tag === "textarea") {
-    return "textarea";
-  }
+  if (tag === "select") return "select";
+  if (tag === "textarea") return "textarea";
 
   if (tag === "input") {
-    return element.type || "text";
+    return normalize(element.type || "text");
   }
 
   return tag || "";
 }
 
+function getNumericValue(element) {
+  if (!element) return NaN;
+
+  const raw = String(element.value || "")
+    .replace(/,/g, "")
+    .replace(/[₹$€£\s]/g, "");
+
+  const number = Number(raw);
+
+  return Number.isFinite(number) ? number : NaN;
+}
+
 function getValueState(element) {
   if (!element) return false;
 
-  const type = (element.type || "").toLowerCase();
+  const type = normalize(element.type);
 
   if (type === "checkbox" || type === "radio") {
     return Boolean(element.checked);
@@ -97,145 +120,426 @@ function getValueState(element) {
   return Boolean(String(element.value || "").trim());
 }
 
-function getReaction(element, eventType) {
-  const type = getFieldType(element);
-  const label = getFieldLabel(element).toLowerCase();
-  const hasValue = getValueState(element);
+function detectContextFromText(text) {
+  const value = normalize(text);
 
-  if (eventType === "submit") {
-    return {
-      mood: "celebrate",
-      message: "Nice! Let's get that into the ledger.",
-      hasValue,
-    };
-  }
-
-  if (type === "file") {
-    if (hasValue) {
-      return {
-        mood: "excited",
-        message: "Got it! I'll let you handle the rest.",
-        hasValue: true,
-      };
-    }
-
-    return {
-      mood: "curious",
-      message: "A file? I'm ready.",
-      hasValue: false,
-    };
-  }
-
-  if (type === "checkbox" || type === "radio") {
-    return {
-      mood: hasValue ? "happy" : "thinking",
-      message: hasValue ? "Good choice!" : "Take your pick.",
-      hasValue,
-    };
-  }
-
-  if (type === "select") {
-    return {
-      mood: "curious",
-      message: "What are we choosing?",
-      hasValue,
-    };
+  if (
+    value.includes("income") ||
+    value.includes("salary") ||
+    value.includes("earning") ||
+    value.includes("received")
+  ) {
+    return "income";
   }
 
   if (
-    label.includes("amount") ||
-    label.includes("value") ||
-    label.includes("salary") ||
-    label.includes("income") ||
-    label.includes("price") ||
-    label.includes("budget") ||
-    label.includes("invested") ||
-    label.includes("valuation") ||
-    label.includes("planned") ||
-    label.includes("saving") ||
-    label.includes("sip")
+    value.includes("expense") ||
+    value.includes("expenditure") ||
+    value.includes("spending") ||
+    value.includes("spend") ||
+    value.includes("need") ||
+    value.includes("cost")
   ) {
-    if (hasValue) {
+    return "expense";
+  }
+
+  if (
+    value.includes("saving") ||
+    value.includes("savings") ||
+    value.includes("sip") ||
+    value.includes("investment")
+  ) {
+    return "saving";
+  }
+
+  return "neutral";
+}
+
+function getContextFromElement(element, previousContext = "neutral") {
+  if (!element) return previousContext;
+
+  const label = getFieldLabel(element);
+
+  const surroundingText =
+    [
+      label,
+      element.getAttribute("name"),
+      element.getAttribute("placeholder"),
+      element.closest("form")?.textContent,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+  const detected = detectContextFromText(surroundingText);
+
+  return detected === "neutral" ? previousContext : detected;
+}
+
+function getAmountMessage(amount, context) {
+  if (context === "income") {
+    if (amount >= 100000) {
+      return {
+        mood: "very-happy",
+        message: "Whoa, that's a great income!",
+      };
+    }
+
+    if (amount >= 50000) {
       return {
         mood: "happy",
-        message: "Numbers look good.",
-        hasValue: true,
+        message: "Nice income! That's looking healthy.",
       };
     }
 
-    return {
-      mood: "thinking",
-      message: "Let's fill in the numbers.",
-      hasValue: false,
-    };
+    if (amount > 0) {
+      return {
+        mood: "happy",
+        message: "Nice! Every bit of income counts.",
+      };
+    }
   }
 
-  if (
-    label.includes("note") ||
-    label.includes("description") ||
-    label.includes("remark") ||
-    label.includes("comment")
-  ) {
-    return {
-      mood: "listening",
-      message: "I'm listening...",
-      hasValue,
-    };
+  if (context === "expense") {
+    if (amount >= LARGE_EXPENSE_THRESHOLD) {
+      return {
+        mood: "sad",
+        message: "Oof... that's a big expense.",
+      };
+    }
+
+    if (amount >= 10000) {
+      return {
+        mood: "concerned",
+        message: "That's getting a little expensive.",
+      };
+    }
+
+    if (amount > 0) {
+      return {
+        mood: "neutral",
+        message: "Got it. Keeping track is what matters.",
+      };
+    }
   }
 
-  if (
-    label.includes("date") ||
-    label.includes("month") ||
-    type === "date" ||
-    type === "month"
-  ) {
-    return {
-      mood: "curious",
-      message: "When did this happen?",
-      hasValue,
-    };
+  if (context === "saving") {
+    if (amount >= 50000) {
+      return {
+        mood: "very-happy",
+        message: "That's a serious saving habit!",
+      };
+    }
+
+    if (amount > 0) {
+      return {
+        mood: "happy",
+        message: "Good move. Future you will appreciate this.",
+      };
+    }
   }
 
-  if (
-    label.includes("fund") ||
-    label.includes("instrument") ||
-    label.includes("type") ||
-    label.includes("mode") ||
-    label.includes("asset")
-  ) {
+  if (amount > 0) {
     return {
-      mood: "curious",
-      message: "Tell me what we're tracking.",
-      hasValue,
-    };
-  }
-
-  if (hasValue) {
-    return {
-      mood: "happy",
-      message: "Perfect. Keep going.",
-      hasValue: true,
+      mood: "neutral",
+      message: "Got it. Let's keep going.",
     };
   }
 
   return {
     mood: "thinking",
-    message: "I'm following along.",
-    hasValue: false,
+    message: "Let's add the number.",
+  };
+}
+
+function getReaction(element, previousContext, eventType) {
+  const type = getFieldType(element);
+  const label = normalize(getFieldLabel(element));
+
+  const context = getContextFromElement(
+    element,
+    previousContext
+  );
+
+  const hasValue = getValueState(element);
+
+  /*
+   * ----------------------------------------------------------
+   * FILE UPLOAD
+   * ----------------------------------------------------------
+   */
+
+  if (type === "file") {
+    if (hasValue) {
+      return {
+        mood: "happy",
+        message: "Got it. File attached.",
+        context,
+      };
+    }
+
+    return {
+      mood: "curious",
+      message: "What have we got here?",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * CHECKBOX / RADIO
+   * ----------------------------------------------------------
+   */
+
+  if (type === "checkbox" || type === "radio") {
+    if (element.checked) {
+      return {
+        mood: "happy",
+        message: "Yep, that makes sense.",
+        context,
+      };
+    }
+
+    return {
+      mood: "thinking",
+      message: "Take your time.",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * AMOUNT / NUMBER INPUT
+   * ----------------------------------------------------------
+   */
+
+  const isAmountField =
+    type === "number" ||
+    label.includes("amount") ||
+    label.includes("income") ||
+    label.includes("expense") ||
+    label.includes("value") ||
+    label.includes("salary") ||
+    label.includes("budget") ||
+    label.includes("planned") ||
+    label.includes("invested") ||
+    label.includes("saving") ||
+    label.includes("sip");
+
+  if (isAmountField) {
+    const amount = getNumericValue(element);
+
+    if (Number.isFinite(amount) && amount > 0) {
+      return {
+        ...getAmountMessage(amount, context),
+        context,
+      };
+    }
+
+    return {
+      mood: "thinking",
+      message:
+        context === "income"
+          ? "Let's see what came in."
+          : context === "expense"
+            ? "How much did that cost?"
+            : "Let's add the number.",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * TEXT / DESCRIPTION
+   * ----------------------------------------------------------
+   */
+
+  if (
+    type === "textarea" ||
+    label.includes("note") ||
+    label.includes("description") ||
+    label.includes("remark") ||
+    label.includes("comment")
+  ) {
+    if (hasValue) {
+      return {
+        mood: "listening",
+        message: "I see. That note might be useful later.",
+        context,
+      };
+    }
+
+    return {
+      mood: "listening",
+      message: "I'm listening...",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * DATE / MONTH
+   * ----------------------------------------------------------
+   */
+
+  if (
+    type === "date" ||
+    type === "month" ||
+    label.includes("date") ||
+    label.includes("month")
+  ) {
+    return {
+      mood: "curious",
+      message: hasValue
+        ? "Perfect. I've got the date."
+        : "When did this happen?",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * SELECT
+   * ----------------------------------------------------------
+   */
+
+  if (type === "select") {
+    return {
+      mood: "curious",
+      message: hasValue
+        ? "Okay, got it."
+        : "Which one fits best?",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * GENERAL TEXT INPUT
+   * ----------------------------------------------------------
+   */
+
+  if (hasValue) {
+    return {
+      mood:
+        context === "income"
+          ? "happy"
+          : context === "expense"
+            ? "neutral"
+            : "normal",
+      message:
+        context === "income"
+          ? "Nice. Keep going."
+          : context === "expense"
+            ? "Got it. I've noted that."
+            : "Looks good.",
+      context,
+    };
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * FOCUS
+   * ----------------------------------------------------------
+   */
+
+  if (eventType === "focus") {
+    return {
+      mood: "curious",
+      message:
+        context === "income"
+          ? "Let's see what came in."
+          : context === "expense"
+            ? "What did we spend?"
+            : "What are we adding?",
+      context,
+    };
+  }
+
+  return {
+    mood: "idle",
+    message: "I'm here with you.",
+    context,
+  };
+}
+
+function getModeFromButton(button) {
+  if (!button) return null;
+
+  const text = normalize(button.textContent);
+
+  if (text === "income") {
+    return {
+      context: "income",
+      mood: "happy",
+      message: "Nice. Let's record that income.",
+    };
+  }
+
+  if (
+    text === "needs" ||
+    text === "spending" ||
+    text === "expense" ||
+    text === "expenses"
+  ) {
+    return {
+      context: "expense",
+      mood: "normal",
+      message: "Okay, let's keep this expense under control.",
+    };
+  }
+
+  if (
+    text === "savings" ||
+    text === "saving" ||
+    text === "sip"
+  ) {
+    return {
+      context: "saving",
+      mood: "happy",
+      message: "Good choice. Future you will like this.",
+    };
+  }
+
+  return null;
+}
+
+function getSubmitReaction(form) {
+  const text = normalize(form?.textContent);
+
+  if (
+    text.includes("add to ledger") ||
+    text.includes("save") ||
+    text.includes("add entry") ||
+    text.includes("create budget") ||
+    text.includes("add saving")
+  ) {
+    return {
+      mood: "celebrate",
+      message: "Nice! That one's done.",
+    };
+  }
+
+  return {
+    mood: "celebrate",
+    message: "There we go!",
   };
 }
 
 function CharacterFace({ mood }) {
-  const isHappy =
+  const happy =
     mood === "happy" ||
-    mood === "excited" ||
+    mood === "very-happy" ||
     mood === "celebrate";
 
-  const isCurious = mood === "curious";
+  const sad =
+    mood === "sad" ||
+    mood === "concerned";
 
-  const isListening = mood === "listening";
+  const curious =
+    mood === "curious" ||
+    mood === "thinking";
 
-  const isThinking = mood === "thinking";
+  const listening = mood === "listening";
 
   return (
     <div className={`ilc-face ilc-face-${mood}`}>
@@ -245,32 +549,34 @@ function CharacterFace({ mood }) {
       <div className="ilc-head">
         <div
           className={`ilc-eye ilc-eye-left ${
-            isHappy ? "ilc-eye-happy" : ""
-          } ${isCurious ? "ilc-eye-curious" : ""}`}
+            happy ? "ilc-eye-happy" : ""
+          } ${sad ? "ilc-eye-sad" : ""}`}
         />
 
         <div
           className={`ilc-eye ilc-eye-right ${
-            isHappy ? "ilc-eye-happy" : ""
-          } ${isCurious ? "ilc-eye-curious" : ""}`}
+            happy ? "ilc-eye-happy" : ""
+          } ${sad ? "ilc-eye-sad" : ""}`}
         />
 
         <div
           className={`ilc-brow ilc-brow-left ${
-            isThinking || isCurious ? "ilc-brow-raised" : ""
-          }`}
+            curious ? "ilc-brow-raised-left" : ""
+          } ${sad ? "ilc-brow-sad-left" : ""}`}
         />
 
         <div
           className={`ilc-brow ilc-brow-right ${
-            isThinking || isCurious ? "ilc-brow-raised" : ""
-          }`}
+            curious ? "ilc-brow-raised-right" : ""
+          } ${sad ? "ilc-brow-sad-right" : ""}`}
         />
 
         <div
           className={`ilc-mouth ${
-            isHappy ? "ilc-mouth-happy" : ""
-          } ${isListening ? "ilc-mouth-listening" : ""}`}
+            happy ? "ilc-mouth-happy" : ""
+          } ${sad ? "ilc-mouth-sad" : ""} ${
+            listening ? "ilc-mouth-listening" : ""
+          }`}
         />
 
         <div className="ilc-cheek ilc-cheek-left" />
@@ -310,25 +616,23 @@ function CharacterBody({ mood }) {
 
 function CelebrationStars() {
   return (
-    <div className="ilc-celebration" aria-hidden="true">
+    <div className="ilc-celebration">
       <span className="ilc-star ilc-star-1">✦</span>
       <span className="ilc-star ilc-star-2">✦</span>
       <span className="ilc-star ilc-star-3">✦</span>
-      <span className="ilc-star ilc-star-4">✦</span>
-      <span className="ilc-star ilc-star-5">✦</span>
     </div>
   );
 }
 
 export default function InteractiveLedgerCompanion() {
-  const [state, setState] = useState(INITIAL_STATE);
+  const [state, setState] = useState(DEFAULT_STATE);
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     let resetTimer = null;
     let hideTimer = null;
 
-    const resetToIdle = (delay = 1800) => {
+    const resetToIdle = (delay = 2600) => {
       window.clearTimeout(resetTimer);
 
       resetTimer = window.setTimeout(() => {
@@ -347,17 +651,11 @@ export default function InteractiveLedgerCompanion() {
         return;
       }
 
-      const reaction = getReaction(element, "focus");
+      setState((previous) =>
+        getReaction(element, previous.context, "focus")
+      );
 
       setVisible(true);
-
-      setState({
-        mood: reaction.mood,
-        message: reaction.message,
-        fieldType: getFieldType(element),
-        hasValue: reaction.hasValue,
-      });
-
       resetToIdle(4200);
     };
 
@@ -368,18 +666,12 @@ export default function InteractiveLedgerCompanion() {
         return;
       }
 
-      const reaction = getReaction(element, "input");
+      setState((previous) =>
+        getReaction(element, previous.context, "input")
+      );
 
       setVisible(true);
-
-      setState({
-        mood: reaction.mood,
-        message: reaction.message,
-        fieldType: getFieldType(element),
-        hasValue: reaction.hasValue,
-      });
-
-      resetToIdle(2600);
+      resetToIdle(2800);
     };
 
     const handleChange = (event) => {
@@ -389,36 +681,35 @@ export default function InteractiveLedgerCompanion() {
         return;
       }
 
-      const reaction = getReaction(element, "change");
+      setState((previous) =>
+        getReaction(element, previous.context, "change")
+      );
 
       setVisible(true);
-
-      setState({
-        mood: reaction.mood,
-        message: reaction.message,
-        fieldType: getFieldType(element),
-        hasValue: reaction.hasValue,
-      });
-
-      resetToIdle(2600);
+      resetToIdle(3000);
     };
 
-    const handleFocusOut = (event) => {
-      const element = event.target;
+    const handleClick = (event) => {
+      const button = event.target?.closest?.("button");
 
-      if (!element?.matches?.("input, textarea, select")) {
+      if (!button) {
         return;
       }
 
-      window.clearTimeout(resetTimer);
+      const modeReaction = getModeFromButton(button);
 
-      resetTimer = window.setTimeout(() => {
-        setState((previous) => ({
-          ...previous,
-          mood: "idle",
-          message: "I'm here with you.",
-        }));
-      }, 900);
+      if (!modeReaction) {
+        return;
+      }
+
+      setState({
+        mood: modeReaction.mood,
+        message: modeReaction.message,
+        context: modeReaction.context,
+      });
+
+      setVisible(true);
+      resetToIdle(3000);
     };
 
     const handleSubmit = (event) => {
@@ -428,20 +719,23 @@ export default function InteractiveLedgerCompanion() {
         return;
       }
 
+      const reaction = getSubmitReaction(form);
+
       /*
-       * We deliberately do NOT prevent or modify submission.
-       * The existing application submit handler continues normally.
+       * IMPORTANT:
+       * No preventDefault.
+       * No stopPropagation.
+       *
+       * Existing submit logic continues normally.
        */
+
+      setState((previous) => ({
+        ...previous,
+        mood: reaction.mood,
+        message: reaction.message,
+      }));
+
       setVisible(true);
-
-      setState({
-        mood: "celebrate",
-        message: "Nice! Let's get that into the ledger.",
-        fieldType: "submit",
-        hasValue: true,
-      });
-
-      window.clearTimeout(resetTimer);
       resetToIdle(3200);
     };
 
@@ -462,38 +756,47 @@ export default function InteractiveLedgerCompanion() {
         message: "Let's do it!",
       }));
 
-      window.clearTimeout(resetTimer);
       resetToIdle(1800);
     };
 
     const handleVisibility = () => {
       if (document.hidden) {
         setVisible(false);
-      } else {
-        window.clearTimeout(hideTimer);
-
-        hideTimer = window.setTimeout(() => {
-          setVisible(true);
-        }, 150);
+        return;
       }
+
+      window.clearTimeout(hideTimer);
+
+      hideTimer = window.setTimeout(() => {
+        setVisible(true);
+      }, 100);
     };
 
     document.addEventListener("focusin", handleFocusIn);
-    document.addEventListener("focusout", handleFocusOut);
     document.addEventListener("input", handleInput);
     document.addEventListener("change", handleChange);
+    document.addEventListener("click", handleClick);
     document.addEventListener("submit", handleSubmit);
     document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("visibilitychange", handleVisibility);
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibility
+    );
 
     return () => {
-      document.removeEventListener("focusin", handleFocusIn);
-      document.removeEventListener("focusout", handleFocusOut);
+      document.removeEventListener(
+        "focusin",
+        handleFocusIn
+      );
       document.removeEventListener("input", handleInput);
       document.removeEventListener("change", handleChange);
+      document.removeEventListener("click", handleClick);
       document.removeEventListener("submit", handleSubmit);
       document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibility
+      );
 
       window.clearTimeout(resetTimer);
       window.clearTimeout(hideTimer);
@@ -521,7 +824,9 @@ export default function InteractiveLedgerCompanion() {
         <CharacterFace mood={state.mood} />
         <CharacterBody mood={state.mood} />
 
-        {state.mood === "celebrate" && <CelebrationStars />}
+        {state.mood === "celebrate" && (
+          <CelebrationStars />
+        )}
 
         <div className="ilc-shadow" />
       </div>
