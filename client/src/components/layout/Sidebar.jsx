@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Landmark, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut, Target } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -27,10 +28,35 @@ export default function Sidebar({ user, theme, onThemeToggle, onLogout }) {
             key={to}
             to={to}
             end={end}
-            className={({ isActive }) => `lg-nav-link text-decoration-none${isActive ? " active" : ""}`}
+            className={({ isActive }) => `lg-nav-link text-decoration-none position-relative${isActive ? " active" : ""}`}
+            style={{ overflow: "hidden" }}
           >
-            <Icon size={17} />
-            <span>{label}</span>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.span
+                    layoutId="lg-nav-active-pill"
+                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: 8,
+                      background: "currentColor",
+                      opacity: 0.14,
+                      zIndex: 0,
+                    }}
+                  />
+                )}
+                <motion.span
+                  whileHover={{ x: 3 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 24 }}
+                  style={{ position: "relative", zIndex: 1, display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  <Icon size={17} />
+                  <span>{label}</span>
+                </motion.span>
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
