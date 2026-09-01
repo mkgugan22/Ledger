@@ -15,13 +15,30 @@ const router = Router();
 // database currently contains one account, so it is safe to claim those legacy
 // records for that account during the first authenticated request. The guard
 // prevents accidental cross-user assignment once multiple accounts exist.
+//
+// Once the app has moved past a single account, "should I claim legacy
+// records?" is permanently "no" — but without caching that answer, every
+// single /auth/me and /login call would still pay for a
+// User.countDocuments() round-trip just to confirm it. Those two endpoints
+// are exactly what many concurrent users hit on every page load, so at real
+// traffic that's a needless steady query against the database for a check
+// whose answer, in practice, only changes once. Cache the "not needed
+// anymore" result in memory per process and skip the query entirely once
+// we've seen it.
+let legacyClaimStillPossible = true;
+
 export async function claimLegacyRecords(userId) {
-  if (await User.countDocuments() !== 1) return;
+  if (!legacyClaimStillPossible) return;
+  if (await User.countDocuments() !== 1) {
+    legacyClaimStillPossible = false;
+    return;
+  }
   await Promise.all([
     Transaction.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
     Valuation.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
     Investment.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
   ]);
+  legacyClaimStillPossible = false;
 }
 
 router.post(
