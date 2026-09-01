@@ -2,17 +2,21 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
+import { claimLegacyRecords, _resetLegacyClaimCache } from "../src/routes/auth.js";
 import { clearCollections, startTestDB, stopTestDB } from "./setup.js";
 import User from "../src/models/User.js";
 import Transaction from "../src/models/Transaction.js";
-import { claimLegacyRecords } from "../src/routes/auth.js";
 
 const app = createApp();
 const entry = { mode: "Needs", type: "Groceries", amount: 1250, month: "2026-08", note: "weekly" };
 let agent;
 
 beforeAll(startTestDB);
-afterEach(async () => { await clearCollections(); agent = request.agent(app); });
+afterEach(async () => {
+  await clearCollections();
+  _resetLegacyClaimCache();
+  agent = request.agent(app);
+});
 afterAll(stopTestDB);
 
 async function signUp() {
