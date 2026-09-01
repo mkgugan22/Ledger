@@ -256,7 +256,7 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
-.lg-auth-shell { min-height: 100vh; background: radial-gradient(circle at top, var(--lg-page-dim), var(--lg-page)); }
+.lg-auth-shell { min-height: 100vh; background: radial-gradient(circle at top, var(--lg-page-dim), var(--lg-page)); position: relative; overflow: hidden; }
 .lg-auth-card { width: min(100%, 430px); border: 1px solid var(--lg-rule); background: var(--lg-surface); }
 .lg-disclaimer { background: color-mix(in srgb, var(--lg-surface-soft) 90%, #4f7d70 10%); color: var(--lg-text); }
 .form-control, .form-select, .input-group-text { background-color: var(--lg-surface); color: var(--lg-text); border-color: var(--lg-rule); }
