@@ -14,7 +14,8 @@ router.get(
     const filter = { user: req.userId };
     const wantsPagination = req.query.page !== undefined || req.query.limit !== undefined;
     if (!wantsPagination) {
-      return res.json(await Investment.find(filter).sort({ date: 1, createdAt: 1 }));
+      // .lean() — read-only response, skip full Mongoose document hydration.
+      return res.json(await Investment.find(filter).sort({ date: 1, createdAt: 1 }).lean());
     }
     const page = req.query.page || 1;
     const limit = req.query.limit || 200;
@@ -22,7 +23,8 @@ router.get(
       Investment.find(filter)
         .sort({ date: 1, createdAt: 1 })
         .skip((page - 1) * limit)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Investment.countDocuments(filter),
     ]);
     res.json({ items, page, limit, total, totalPages: Math.ceil(total / limit) });
