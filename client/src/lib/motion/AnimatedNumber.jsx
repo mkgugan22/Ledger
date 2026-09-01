@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { useMotionValue, useTransform, animate } from "framer-motion";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 
-// Optional drop-in for count-up number animation, e.g. dashboard totals:
-//   <AnimatedNumber value={totals.inHand} formatter={formatCurrency} />
-// Not wired into any existing component — purely available to use where
-// you want it, without changing current dashboard/budget logic.
+// Count-up number animation. Renders a <span> whose text ticks smoothly
+// from its previous value to the new `value` whenever it changes.
+//
+// Usage:
+//   <AnimatedNumber value={totals.inHand} formatter={fmtINR} />
 export default function AnimatedNumber({ value = 0, formatter = (n) => n, duration = 0.6, className }) {
   const motionVal = useMotionValue(value);
   const rounded = useTransform(motionVal, (v) => formatter(Math.round(v)));
