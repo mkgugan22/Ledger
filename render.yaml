@@ -15,3 +15,23 @@ services:
         value: https://ledger007.netlify.app
       - key: NODE_ENV
         value: production
+    # --- Scaling for higher concurrent traffic -------------------------
+    # Uncomment ONE block below when you're ready to run more than one
+    # instance. Both require a paid Render plan (autoscaling specifically
+    # needs a Professional workspace or higher) — free/starter instance
+    # types can only ever run 1 instance. Because this API is stateless
+    # (JWT in an httpOnly cookie, no server-side session store), any
+    # number of instances can serve any request with zero sticky-session
+    # configuration.
+    #
+    # Fixed instance count:
+    # plan: standard
+    # numInstances: 2
+    #
+    # Autoscale on CPU/memory load instead of a fixed count:
+    # plan: standard
+    # scaling:
+    #   minInstances: 1
+    #   maxInstances: 4
+    #   targetCPUPercent: 60
+    #   targetMemoryPercent: 70
