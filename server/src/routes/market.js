@@ -33,6 +33,41 @@ async function getSchemeList() {
   return inFlightFetch;
 }
 
+// Per-fund NAV history changes at most once a day, but every page view of
+// a fund used to hit mfapi.in directly. With many concurrent users looking
+// at the same handful of popular funds, that's the single biggest source
+// of avoidable outbound calls under load — and the one most likely to get
+// this server rate-limited or slowed down by the upstream provider. Cache
+// each scheme's response for a few hours and coalesce concurrent misses,
+// the same pattern as the scheme list above. A bounded Map keeps memory
+// predictable even if thousands of distinct schemes get looked up.
+const SCHEME_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const SCHEME_CACHE_MAX_ENTRIES = 500;
+const schemeCache = new Map(); // schemeCode -> { data, fetchedAt }
+const schemeInFlight = new Map(); // schemeCode -> Promise
+
+async function getScheme(schemeCode) {
+  const cached = schemeCache.get(schemeCode);
+  if (cached && Date.now() - cached.fetchedAt < SCHEME_TTL_MS) return cached.data;
+
+  const pending = schemeInFlight.get(schemeCode);
+  if (pending) return pending;
+
+  const fetchPromise = upstream(`/${encodeURIComponent(schemeCode)}`)
+    .then((data) => {
+      if (schemeCache.size >= SCHEME_CACHE_MAX_ENTRIES && !schemeCache.has(schemeCode)) {
+        const oldestKey = schemeCache.keys().next().value;
+        schemeCache.delete(oldestKey);
+      }
+      schemeCache.set(schemeCode, { data, fetchedAt: Date.now() });
+      return data;
+    })
+    .finally(() => { schemeInFlight.delete(schemeCode); });
+
+  schemeInFlight.set(schemeCode, fetchPromise);
+  return fetchPromise;
+}
+
 router.get("/search", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
@@ -45,7 +80,7 @@ router.get("/search", async (req, res) => {
 
 router.get("/:schemeCode", async (req, res) => {
   try {
-    const data = await upstream(`/${encodeURIComponent(req.params.schemeCode)}`);
+    const data = await getScheme(req.params.schemeCode);
     res.json({ schemeCode: req.params.schemeCode, meta: data.meta, data: data.data?.slice(0, 365) || [] });
   } catch (err) { res.status(502).json({ error: "Market data is temporarily unavailable." }); }
 });
