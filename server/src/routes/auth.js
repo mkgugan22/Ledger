@@ -40,6 +40,10 @@ export async function claimLegacyRecords(userId) {
   ]);
   legacyClaimStillPossible = false;
 }
+// Test-only helper to reset the in-memory cache between test cases.
+export function _resetLegacyClaimCache() {
+  legacyClaimStillPossible = true;
+}
 
 router.post(
   "/register",
