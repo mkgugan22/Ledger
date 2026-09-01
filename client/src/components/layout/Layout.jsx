@@ -2,15 +2,19 @@ import { Outlet } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import Sidebar from "./Sidebar.jsx";
 import TopNavbar from "./TopNavbar.jsx";
+import AnimatedBackground from "../../lib/motion/AnimatedBackground.jsx";
+import PageTransition from "../../lib/motion/PageTransition.jsx";
 
 export default function Layout({ apiError, user, theme, onThemeToggle, onLogout }) {
   return (
-    <div className="d-flex" style={{ minHeight: "100vh" }}>
-      <div className="d-none d-lg-flex">
+    <div className="d-flex" style={{ minHeight: "100vh", position: "relative" }}>
+      <AnimatedBackground />
+
+      <div className="d-none d-lg-flex" style={{ position: "relative", zIndex: 1 }}>
         <Sidebar user={user} theme={theme} onThemeToggle={onThemeToggle} onLogout={onLogout} />
       </div>
 
-      <div className="flex-grow-1 min-w-0">
+      <div className="flex-grow-1 min-w-0" style={{ position: "relative", zIndex: 1 }}>
         <div className="d-lg-none">
           <TopNavbar user={user} theme={theme} onThemeToggle={onThemeToggle} onLogout={onLogout} />
         </div>
@@ -23,7 +27,9 @@ export default function Layout({ apiError, user, theme, onThemeToggle, onLogout 
                 <small>{apiError}</small>
               </div>
             )}
-            <Outlet />
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
           </div>
         </main>
       </div>
