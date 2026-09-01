@@ -35,7 +35,10 @@ router.get(
 
     const wantsPagination = req.query.page !== undefined || req.query.limit !== undefined;
     if (!wantsPagination) {
-      const list = await Transaction.find(filter).sort({ createdAt: 1 });
+      // .lean() skips hydrating full Mongoose documents for a read-only
+      // response — same JSON output, less CPU/memory per request, which is
+      // what lets one instance serve more concurrent list reads.
+      const list = await Transaction.find(filter).sort({ createdAt: 1 }).lean();
       return res.json(list);
     }
 
@@ -45,7 +48,8 @@ router.get(
       Transaction.find(filter)
         .sort({ createdAt: 1 })
         .skip((page - 1) * limit)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Transaction.countDocuments(filter),
     ]);
     res.json({ items, page, limit, total, totalPages: Math.ceil(total / limit) });
@@ -59,7 +63,7 @@ router.get(
 router.get(
   "/export",
   asyncHandler(async (req, res) => {
-    const list = await Transaction.find({ user: req.userId }).sort({ month: 1, createdAt: 1 });
+    const list = await Transaction.find({ user: req.userId }).sort({ month: 1, createdAt: 1 }).lean();
     const rows = list.map((t) => ({
       mode: t.mode,
       type: t.type,
