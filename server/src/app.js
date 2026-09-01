@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import compression from "compression";
 import transactionsRouter from "./routes/transactions.js";
 import valuationsRouter from "./routes/valuations.js";
 import authRouter from "./routes/auth.js";
@@ -11,6 +12,7 @@ import budgetsRouter from "./routes/budgets.js";
 import receiptsRouter from "./routes/receipts.js";
 import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
+import { apiRateLimit } from "./middleware/rateLimit.js";
 
 // Builds and returns the configured Express app without connecting to a
 // database or starting a listener. Kept separate from index.js so tests
@@ -27,6 +29,11 @@ export function createApp() {
   // proxy so the auth limiter sees the real client address.
   if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
   app.use(helmet());
+  // Gzip JSON/CSV responses. Binary receipt/PDF payloads are already
+  // compressed formats, so the `compression` package's default filter
+  // (based on mime-db's `compressible` flag) skips them automatically —
+  // this only kicks in where it actually saves bandwidth.
+  app.use(compression());
   app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
@@ -34,6 +41,9 @@ export function createApp() {
   app.get("/api/health", (req, res) => res.json({ ok: true }));
   app.use("/api/auth", authRouter);
   app.use(requireAuth);
+  // Placed after requireAuth so it can key by req.userId instead of IP —
+  // see the comment in middleware/rateLimit.js.
+  app.use(apiRateLimit);
   app.use("/api/market", marketRouter);
   app.use("/api/transactions", transactionsRouter);
   app.use("/api/transactions/:id/receipts", receiptsRouter);
