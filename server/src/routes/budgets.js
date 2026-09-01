@@ -14,7 +14,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const filter = { user: req.userId };
     if (req.query.month) filter.month = String(req.query.month);
-    const list = await Budget.find(filter).sort({ month: 1, mode: 1, type: 1 });
+    // .lean() — read-only response, skip full Mongoose document hydration.
+    const list = await Budget.find(filter).sort({ month: 1, mode: 1, type: 1 }).lean();
     res.json(list);
   })
 );
