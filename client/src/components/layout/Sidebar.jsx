@@ -1,7 +1,9 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Landmark, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut, Target } from "lucide-react";
-
+import {
+  Landmark, BookOpen, PlusCircle, List, PiggyBank,
+  TrendingUp, Sun, Moon, LogOut, Target, Sparkles,
+} from "lucide-react";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: BookOpen, end: true },
   { to: "/add", label: "Add Entry", icon: PlusCircle },
