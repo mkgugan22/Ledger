@@ -13,6 +13,8 @@ import receiptsRouter from "./routes/receipts.js";
 import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
+import aiRouter from "./routes/ai.js";
+import { aiRateLimit } from "./middleware/rateLimit.js";
 
 // Builds and returns the configured Express app without connecting to a
 // database or starting a listener. Kept separate from index.js so tests
