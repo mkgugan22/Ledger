@@ -71,4 +71,21 @@ describe("ledger workflows", () => {
     const result = await active.get("/api/budgets?month=2026-08").expect(200);
     expect(result.body).toHaveLength(1);
   });
+
+  it("keeps Ledger AI authenticated and validates its body", async () => {
+  const active = await signUp();
+
+  await active
+    .post("/api/ai/chat")
+    .send({ message: "   " })
+    .expect(400);
+
+  const result = await active
+    .post("/api/ai/chat")
+    .send({ message: "How is my budget?" })
+    .expect(503);
+
+  expect(result.body.error).toMatch(/not configured/i);
+});
+  
 });
