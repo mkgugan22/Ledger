@@ -118,3 +118,8 @@ export const fetchMarketFund = (schemeCode) => request(`/market/${encodeURICompo
 export const fetchBudgets = async (month) => collection(await request(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets")).map(withId);
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
+export const chatWithLedgerAI = (data) =>
+  request("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
