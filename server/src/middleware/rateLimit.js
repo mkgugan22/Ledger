@@ -1,5 +1,4 @@
-import rateLimit from "express-rate-limit";
-
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // 10 attempts per 15 minutes per IP on login/register — generous enough for
 // a real user who mistypes a password a few times, tight enough to blunt
 // credential-stuffing / brute-force attempts.
@@ -26,7 +25,7 @@ export const apiRateLimit = rateLimit({
   limit: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.userId || req.ip,
+  keyGenerator: (req) => req.userId || ipKeyGenerator(req.ip),
   message: { error: "Too many requests. Please slow down and try again shortly." },
 });
 export const aiRateLimit = rateLimit({
