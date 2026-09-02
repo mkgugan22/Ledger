@@ -150,3 +150,19 @@ export const investmentListQuerySchema = z.object({
   page: pageSchema.optional(),
   limit: limitSchema.optional(),
 }).strict();
+
+export const ledgerAiChatSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(1, "Write a question for Ledger AI.")
+    .max(2000, "Questions can be at most 2,000 characters."),
+
+  history: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().trim().min(1).max(2000),
+  }))
+    .max(6, "Conversation history can contain at most six messages.")
+    .optional()
+    .default([]),
+}).strict();
