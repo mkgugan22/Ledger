@@ -43,6 +43,7 @@ export function createApp() {
   app.get("/api/health", (req, res) => res.json({ ok: true }));
   app.use("/api/auth", authRouter);
   app.use(requireAuth);
+  app.use("/api/ai", aiRateLimit, aiRouter);
   // Placed after requireAuth so it can key by req.userId instead of IP —
   // see the comment in middleware/rateLimit.js.
   app.use(apiRateLimit);
@@ -62,7 +63,11 @@ export function createApp() {
     if (res.headersSent) return next(err);
     console.error(err);
     const status = err.status || (err.name === "ValidationError" || err.name === "CastError" ? 400 : 500);
-    res.status(status).json({ error: status >= 500 ? "Something went wrong." : err.message || "Invalid request." });
+    res.status(status).json({
+  error: status >= 500 && !err.expose
+    ? "Something went wrong."
+    : err.message || "Invalid request.",
+});
   });
 
   return app;
