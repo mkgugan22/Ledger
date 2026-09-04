@@ -1,4 +1,4 @@
-import { buildSystemInstruction } from "./prompt.js";
+import { buildSystemInstruction } from "./prompt.md";
 
 function httpError(message, status, providerStatus) {
   const error = new Error(message);
