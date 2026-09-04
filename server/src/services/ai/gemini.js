@@ -23,17 +23,16 @@ function responseText(body) {
 
 /*
  * ============================================================
- * LEDGER AI MASTER PROMPT
+ * LOAD LEDGER AI MASTER PROMPT
  * ============================================================
  *
- * Node.js does not natively support importing .md files with:
+ * prompt.md must be treated as text.
+ *
+ * Node.js does not support:
  *
  *   import { buildSystemInstruction } from "./prompt.md";
  *
- * Instead, we load prompt.md as UTF-8 text.
- *
- * This keeps prompt.md as a separate Markdown file and does
- * not change the existing Ledger AI prompt architecture.
+ * So we load it with fs instead.
  * ============================================================
  */
 
@@ -58,15 +57,11 @@ try {
 }
 
 /*
- * Build the complete system instruction.
- *
- * Existing callers continue to use:
- *
- *   buildSystemInstruction(snapshot)
- *
- * The Ledger snapshot is appended to the existing master prompt
- * exactly at request time.
+ * ============================================================
+ * BUILD SYSTEM INSTRUCTION
+ * ============================================================
  */
+
 function buildSystemInstruction(snapshot) {
   return `${masterPrompt}
 
@@ -85,11 +80,11 @@ ${JSON.stringify(snapshot, null, 2)}
 }
 
 /*
- * Gemini may return JSON errors.
- *
- * Some gateways/proxies can return HTML or plain text instead,
- * so parsing failures are handled safely.
+ * ============================================================
+ * PROVIDER ERROR PARSING
+ * ============================================================
  */
+
 function describeProviderFailure(rawText) {
   try {
     const parsed = JSON.parse(rawText);
@@ -135,6 +130,14 @@ function userFacingMessageFor(status, reason) {
     return "Ledger AI is getting rate-limited by its provider right now. Please wait a moment and try again.";
   }
 
+  if (status === 500) {
+    return "Ledger AI's provider returned an internal error. Please try again shortly.";
+  }
+
+  if (status === 502) {
+    return "Ledger AI could not reach its provider successfully. Please try again shortly.";
+  }
+
   if (status === 503) {
     return "Ledger AI's provider is temporarily overloaded. Please try again shortly.";
   }
@@ -155,38 +158,37 @@ async function callGemini({
   contents,
   signal,
 }) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model
-    )}:generateContent`,
-    {
-      method: "POST",
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/` +
+    `${encodeURIComponent(model)}:generateContent`;
 
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
+  const response = await fetch(url, {
+    method: "POST",
+
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+
+    signal,
+
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [
+          {
+            text: systemInstruction,
+          },
+        ],
       },
 
-      signal,
+      contents,
 
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: systemInstruction,
-            },
-          ],
-        },
-
-        contents,
-
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: 900,
-        },
-      }),
-    }
-  );
+      generationConfig: {
+        temperature: 0.25,
+        maxOutputTokens: 900,
+      },
+    }),
+  });
 
   const rawText = await response.text();
 
@@ -197,13 +199,10 @@ async function callGemini({
     } = describeProviderFailure(rawText);
 
     console.error(
-      `[Ledger AI] provider request failed: status=${
-        response.status
-      } reason=${
-        reason || "unknown"
-      } message=${
-        message || rawText.slice(0, 500) || "(empty body)"
-      }`
+      `[Ledger AI] provider request failed: ` +
+      `status=${response.status} ` +
+      `reason=${reason || "unknown"} ` +
+      `message=${message || rawText.slice(0, 500) || "(empty body)"}`
     );
 
     throw httpError(
@@ -211,7 +210,10 @@ async function callGemini({
         response.status,
         reason
       ),
-      502,
+      response.status === 429 ||
+      response.status === 503
+        ? 503
+        : 502,
       response.status
     );
   }
@@ -222,10 +224,8 @@ async function callGemini({
     body = JSON.parse(rawText);
   } catch {
     console.error(
-      `[Ledger AI] provider returned a non-JSON success body: ${rawText.slice(
-        0,
-        500
-      )}`
+      `[Ledger AI] provider returned non-JSON success body: ` +
+      rawText.slice(0, 500)
     );
 
     throw httpError(
@@ -234,12 +234,28 @@ async function callGemini({
     );
   }
 
-  return responseText(body);
+  const answer = responseText(body);
+
+  if (!answer) {
+    console.error(
+      "[Ledger AI] provider response did not contain answer text."
+    );
+
+    throw httpError(
+      "Ledger AI did not return an answer. Please try again.",
+      502
+    );
+  }
+
+  return answer;
 }
 
 /*
- * Small delay used for transient provider retries.
+ * ============================================================
+ * WAIT
+ * ============================================================
  */
+
 function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -248,24 +264,13 @@ function wait(ms) {
 
 /*
  * ============================================================
- * PUBLIC LEDGER AI FUNCTION
- * ============================================================
- *
- * Keep this function signature unchanged:
- *
- * askGemini({
- *   message,
- *   history,
- *   snapshot
- * })
- *
- * This ensures the existing AI route does not need to change.
+ * PUBLIC API
  * ============================================================
  */
 
 export async function askGemini({
   message,
-  history,
+  history = [],
   snapshot,
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -282,14 +287,14 @@ export async function askGemini({
     "gemini-2.5-flash";
 
   /*
-   * Read the Markdown master prompt and combine it with
-   * the user's current Ledger snapshot.
+   * Build the full system instruction using the existing
+   * Ledger master prompt + live Ledger snapshot.
    */
   const systemInstruction =
     buildSystemInstruction(snapshot);
 
   /*
-   * Preserve the existing conversation history format.
+   * Preserve existing conversation history behavior.
    */
   const contents = [
     ...history.map((item) => ({
@@ -317,8 +322,48 @@ export async function askGemini({
   ];
 
   /*
-   * One retry is allowed only for transient provider
-   * failures such as 429 and 503.
+   * ==========================================================
+   * TIMEOUT
+   * ==========================================================
+   *
+   * The previous implementation aborted after 20 seconds.
+   *
+   * That is what caused:
+   *
+   *   Ledger AI took too long to respond.
+   *
+   * Render then returned:
+   *
+   *   504
+   *
+   * Use 60 seconds instead.
+   *
+   * This value can also be configured through:
+   *
+   *   GEMINI_TIMEOUT_MS
+   *
+   * on Render.
+   */
+
+  const configuredTimeout = Number(
+    process.env.GEMINI_TIMEOUT_MS
+  );
+
+  const timeoutMs =
+    Number.isFinite(configuredTimeout) &&
+    configuredTimeout >= 10000 &&
+    configuredTimeout <= 120000
+      ? configuredTimeout
+      : 60000;
+
+  /*
+   * Retry transient provider failures.
+   *
+   * 429 = rate limit
+   * 500 = provider internal error
+   * 503 = provider unavailable
+   *
+   * Timeouts are retried once as well.
    */
   const maxAttempts = 2;
 
@@ -336,10 +381,17 @@ export async function askGemini({
       () => {
         controller.abort();
       },
-      20000
+      timeoutMs
     );
 
+    const startedAt = Date.now();
+
     try {
+      console.log(
+        `[Ledger AI] Gemini request started ` +
+        `(attempt ${attempt}/${maxAttempts}, model=${model}, timeout=${timeoutMs}ms)`
+      );
+
       const answer =
         await callGemini({
           apiKey,
@@ -349,32 +401,64 @@ export async function askGemini({
           signal: controller.signal,
         });
 
-      if (!answer) {
-        throw httpError(
-          "Ledger AI did not return an answer. Please try again.",
-          502
-        );
-      }
+      const duration =
+        Date.now() - startedAt;
+
+      console.log(
+        `[Ledger AI] Gemini request completed in ${duration}ms`
+      );
 
       return answer;
     } catch (error) {
-      lastError =
-        error?.name === "AbortError"
-          ? httpError(
-              "Ledger AI took too long to respond. Please try again.",
-              504
-            )
-          : error;
+      const duration =
+        Date.now() - startedAt;
 
-      const isRetryable =
+      if (error?.name === "AbortError") {
+        lastError = httpError(
+          "Ledger AI took too long to respond. Please try again.",
+          504
+        );
+
+        lastError.providerStatus = 408;
+
+        console.error(
+          `[Ledger AI] Gemini request timed out after ${duration}ms ` +
+          `(attempt ${attempt}/${maxAttempts})`
+        );
+      } else {
+        lastError = error;
+
+        console.error(
+          `[Ledger AI] Gemini request failed after ${duration}ms ` +
+          `(attempt ${attempt}/${maxAttempts}):`,
+          error?.message || error
+        );
+      }
+
+      const retryable =
+        lastError?.providerStatus === 408 ||
         lastError?.providerStatus === 429 ||
+        lastError?.providerStatus === 500 ||
         lastError?.providerStatus === 503;
 
       if (
-        isRetryable &&
+        retryable &&
         attempt < maxAttempts
       ) {
-        await wait(600 * attempt);
+        /*
+         * Small exponential backoff.
+         *
+         * 1st retry waits 1 second.
+         */
+        const retryDelay =
+          1000 * attempt;
+
+        console.log(
+          `[Ledger AI] Retrying Gemini request in ${retryDelay}ms`
+        );
+
+        await wait(retryDelay);
+
         continue;
       }
 
