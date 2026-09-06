@@ -41,50 +41,34 @@ try {
  * CONFIGURATION
  * ============================================================
  *
- * FREELLMAPI_BASE_URL
+ * GEMINI_API_KEY
+ *   Your Google AI Studio / Gemini API key.
+ *
+ * GEMINI_MODEL
  *   Example:
- *   https://your-freellmapi-host.com/v1
+ *   gemini-2.5-flash
  *
- * FREELLMAPI_API_KEY
- *   Your unified FreeLLMAPI key.
- *
- * FREELLMAPI_MODEL
- *   Recommended:
- *   auto:fast
- *
- * This keeps provider selection inside FreeLLMAPI.
+ * GEMINI_TIMEOUT_MS
+ *   Optional. Defaults to 45000.
  */
 
 function getConfig() {
-  const baseUrl = String(
-    process.env.FREELLMAPI_BASE_URL || ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
-
   const apiKey = String(
-    process.env.FREELLMAPI_API_KEY || ""
+    process.env.GEMINI_API_KEY || ""
   ).trim();
 
-  const model =
-    String(process.env.FREELLMAPI_MODEL || "auto:fast").trim();
-
-  if (!baseUrl) {
-    throw httpError(
-      "Ledger AI is not configured. Add FREELLMAPI_BASE_URL to the API server.",
-      503
-    );
-  }
+  const model = String(
+    process.env.GEMINI_MODEL || "gemini-2.5-flash"
+  ).trim();
 
   if (!apiKey) {
     throw httpError(
-      "Ledger AI is not configured. Add FREELLMAPI_API_KEY to the API server.",
+      "Ledger AI is not configured. Add GEMINI_API_KEY to the API server.",
       503
     );
   }
 
   return {
-    baseUrl,
     apiKey,
     model,
   };
@@ -120,19 +104,13 @@ ${JSON.stringify(snapshot, null, 2)}
  */
 
 function extractAnswer(body) {
-  const answer =
-    body?.choices?.[0]?.message?.content;
+  const parts = body?.candidates?.[0]?.content?.parts;
 
-  if (typeof answer === "string") {
-    return answer.trim();
-  }
-
-  if (Array.isArray(answer)) {
-    return answer
-      .map((part) => {
-        if (typeof part === "string") return part;
-        return part?.text || "";
-      })
+  if (Array.isArray(parts)) {
+    return parts
+      .map((part) =>
+        typeof part?.text === "string" ? part.text : ""
+      )
       .join("")
       .trim();
   }
@@ -150,14 +128,13 @@ function extractProviderError(body, fallbackStatus) {
   const message =
     body?.error?.message ||
     body?.message ||
-    body?.error ||
     null;
 
   if (typeof message === "string" && message.trim()) {
     return message.trim();
   }
 
-  return `FreeLLMAPI request failed with status ${fallbackStatus}.`;
+  return `Gemini request failed with status ${fallbackStatus}.`;
 }
 
 /*
@@ -168,7 +145,7 @@ function extractProviderError(body, fallbackStatus) {
 
 function resolveTimeout() {
   const configured = Number(
-    process.env.FREELLMAPI_TIMEOUT_MS
+    process.env.GEMINI_TIMEOUT_MS
   );
 
   if (
@@ -188,11 +165,11 @@ function resolveTimeout() {
  * ============================================================
  */
 
-async function callFreeLLMAPI({
-  baseUrl,
+async function callGemini({
   apiKey,
   model,
-  messages,
+  systemInstruction,
+  contents,
   signal,
 }) {
   const controller = new AbortController();
@@ -218,59 +195,43 @@ async function callFreeLLMAPI({
   const startedAt = Date.now();
 
   try {
-    const url = `${baseUrl}/chat/completions`;
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/` +
+      `${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const response = await fetch(url, {
       method: "POST",
 
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
 
       signal: controller.signal,
 
       body: JSON.stringify({
-        /*
-         * FreeLLMAPI supports:
-         *
-         * auto
-         * auto:fast
-         * auto:smart
-         * auto:reliable
-         * auto:balanced
-         *
-         * auto:fast is preferred for Ledger because response
-         * latency matters significantly for an interactive
-         * finance assistant.
-         */
-        model,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }],
+        },
 
-        messages,
+        contents,
 
-        /*
-         * Ledger answers should be deterministic and concise.
-         */
-        temperature: 0.2,
+        generationConfig: {
+          /*
+           * Ledger answers should be deterministic and concise.
+           */
+          temperature: 0.2,
 
-        /*
-         * This is intentionally smaller than the old Gemini
-         * limit. It reduces unnecessary generation time while
-         * leaving enough room for a financial analysis answer.
-         */
-        max_tokens: 700,
+          /*
+           * Enough room for a financial analysis answer without
+           * unnecessary generation time.
+           */
+          maxOutputTokens: 700,
 
-        /*
-         * Keep sampling predictable.
-         */
-        top_p: 0.9,
-
-        /*
-         * Explicitly disable tool behavior for this assistant.
-         * Ledger currently uses deterministic server-side data,
-         * not LLM tools.
-         */
-        tool_choice: "none",
+          /*
+           * Keep sampling predictable.
+           */
+          topP: 0.9,
+        },
       }),
     });
 
@@ -288,7 +249,7 @@ async function callFreeLLMAPI({
       }
 
       console.error(
-        `[Ledger AI] FreeLLMAPI failed ` +
+        `[Ledger AI] Gemini failed ` +
           `status=${response.status} ` +
           `duration=${duration}ms ` +
           `message=${extractProviderError(body, response.status)}`
@@ -313,7 +274,7 @@ async function callFreeLLMAPI({
       body = JSON.parse(rawText);
     } catch {
       console.error(
-        `[Ledger AI] FreeLLMAPI returned invalid JSON ` +
+        `[Ledger AI] Gemini returned invalid JSON ` +
           `duration=${duration}ms`
       );
 
@@ -327,8 +288,9 @@ async function callFreeLLMAPI({
 
     if (!answer) {
       console.error(
-        `[Ledger AI] FreeLLMAPI returned no answer ` +
-          `duration=${duration}ms`
+        `[Ledger AI] Gemini returned no answer ` +
+          `duration=${duration}ms ` +
+          `finishReason=${body?.candidates?.[0]?.finishReason}`
       );
 
       throw httpError(
@@ -338,8 +300,8 @@ async function callFreeLLMAPI({
     }
 
     console.log(
-      `[Ledger AI] FreeLLMAPI completed in ${duration}ms ` +
-        `(model=${body?.model || model})`
+      `[Ledger AI] Gemini completed in ${duration}ms ` +
+        `(model=${model})`
     );
 
     return answer;
@@ -367,17 +329,24 @@ async function callFreeLLMAPI({
 function mapProviderError(status, providerMessage) {
   const text = String(providerMessage || "").toLowerCase();
 
+  if (status === 400) {
+    return (
+      "Ledger AI's request to Gemini was invalid. " +
+      "Check GEMINI_MODEL on the server."
+    );
+  }
+
   if (status === 401 || status === 403) {
     return (
-      "Ledger AI's FreeLLMAPI connection was rejected. " +
-      "Check FREELLMAPI_API_KEY on the server."
+      "Ledger AI's Gemini connection was rejected. " +
+      "Check GEMINI_API_KEY on the server."
     );
   }
 
   if (status === 404) {
     return (
-      "Ledger AI could not find the configured FreeLLMAPI endpoint. " +
-      "Check FREELLMAPI_BASE_URL."
+      "Ledger AI could not find the configured Gemini model. " +
+      "Check GEMINI_MODEL."
     );
   }
 
@@ -390,8 +359,7 @@ function mapProviderError(status, providerMessage) {
   if (status === 429) {
     return (
       "Ledger AI is temporarily rate-limited. " +
-      "FreeLLMAPI should normally fail over to another available model; " +
-      "please try again shortly."
+      "Please try again shortly."
     );
   }
 
@@ -422,7 +390,7 @@ function mapProviderError(status, providerMessage) {
  * We preserve that behavior.
  */
 
-function buildMessages({
+function buildRequest({
   message,
   history,
   snapshot,
@@ -444,29 +412,30 @@ function buildMessages({
     : [];
 
   /*
-   * OpenAI-compatible format:
+   * Gemini format:
    *
-   * system
-   * previous conversation
-   * current user message
+   * role: "user" | "model"
+   * parts: [{ text: "..." }]
+   *
+   * System instruction is passed separately, not as a message.
    */
 
-  return [
-    {
-      role: "system",
-      content: systemInstruction,
-    },
-
+  const contents = [
     ...safeHistory.map((item) => ({
-      role: item.role,
-      content: item.content,
+      role: item.role === "assistant" ? "model" : "user",
+      parts: [{ text: item.content }],
     })),
 
     {
       role: "user",
-      content: message,
+      parts: [{ text: message }],
     },
   ];
+
+  return {
+    systemInstruction,
+    contents,
+  };
 }
 
 /*
@@ -490,7 +459,7 @@ export async function askGemini({
 }) {
   const config = getConfig();
 
-  const messages = buildMessages({
+  const { systemInstruction, contents } = buildRequest({
     message,
     history,
     snapshot,
@@ -500,17 +469,14 @@ export async function askGemini({
    * First attempt.
    */
   try {
-    return await callFreeLLMAPI({
+    return await callGemini({
       ...config,
-      messages,
+      systemInstruction,
+      contents,
     });
   } catch (firstError) {
     /*
      * Retry only transient failures.
-     *
-     * FreeLLMAPI itself already performs provider-level failover,
-     * so Ledger only performs ONE client-level retry for a
-     * transient gateway/network problem.
      */
     const retryable =
       firstError?.providerStatus === 408 ||
@@ -524,16 +490,17 @@ export async function askGemini({
     }
 
     console.warn(
-      "[Ledger AI] Retrying FreeLLMAPI request once after transient failure."
+      "[Ledger AI] Retrying Gemini request once after transient failure."
     );
 
     await new Promise((resolve) =>
       setTimeout(resolve, 600)
     );
 
-    return callFreeLLMAPI({
+    return callGemini({
       ...config,
-      messages,
+      systemInstruction,
+      contents,
     });
   }
 }
