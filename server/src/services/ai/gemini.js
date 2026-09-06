@@ -14,31 +14,14 @@ function httpError(message, status, providerStatus) {
   return error;
 }
 
-function responseText(body) {
-  return body?.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text || "")
-    .join("")
-    .trim();
-}
-
 /*
  * ============================================================
- * LOAD LEDGER AI MASTER PROMPT
- * ============================================================
- *
- * prompt.md must be treated as text.
- *
- * Node.js does not support:
- *
- *   import { buildSystemInstruction } from "./prompt.md";
- *
- * So we load it with fs instead.
+ * LOAD LEDGER MASTER PROMPT
  * ============================================================
  */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const promptPath = path.join(__dirname, "prompt.md");
 
 let masterPrompt;
@@ -46,10 +29,7 @@ let masterPrompt;
 try {
   masterPrompt = fs.readFileSync(promptPath, "utf8");
 } catch (error) {
-  console.error(
-    "[Ledger AI] Failed to load prompt.md:",
-    error
-  );
+  console.error("[Ledger AI] Failed to load prompt.md:", error);
 
   throw new Error(
     "Ledger AI master prompt could not be loaded from services/ai/prompt.md."
@@ -58,7 +38,61 @@ try {
 
 /*
  * ============================================================
- * BUILD SYSTEM INSTRUCTION
+ * CONFIGURATION
+ * ============================================================
+ *
+ * FREELLMAPI_BASE_URL
+ *   Example:
+ *   https://your-freellmapi-host.com/v1
+ *
+ * FREELLMAPI_API_KEY
+ *   Your unified FreeLLMAPI key.
+ *
+ * FREELLMAPI_MODEL
+ *   Recommended:
+ *   auto:fast
+ *
+ * This keeps provider selection inside FreeLLMAPI.
+ */
+
+function getConfig() {
+  const baseUrl = String(
+    process.env.FREELLMAPI_BASE_URL || ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  const apiKey = String(
+    process.env.FREELLMAPI_API_KEY || ""
+  ).trim();
+
+  const model =
+    String(process.env.FREELLMAPI_MODEL || "auto:fast").trim();
+
+  if (!baseUrl) {
+    throw httpError(
+      "Ledger AI is not configured. Add FREELLMAPI_BASE_URL to the API server.",
+      503
+    );
+  }
+
+  if (!apiKey) {
+    throw httpError(
+      "Ledger AI is not configured. Add FREELLMAPI_API_KEY to the API server.",
+      503
+    );
+  }
+
+  return {
+    baseUrl,
+    apiKey,
+    model,
+  };
+}
+
+/*
+ * ============================================================
+ * SYSTEM PROMPT
  * ============================================================
  */
 
@@ -81,191 +115,372 @@ ${JSON.stringify(snapshot, null, 2)}
 
 /*
  * ============================================================
- * PROVIDER ERROR PARSING
+ * RESPONSE EXTRACTION
  * ============================================================
  */
 
-function describeProviderFailure(rawText) {
-  try {
-    const parsed = JSON.parse(rawText);
+function extractAnswer(body) {
+  const answer =
+    body?.choices?.[0]?.message?.content;
 
-    return {
-      reason: parsed?.error?.status || null,
-      message: parsed?.error?.message || null,
-    };
-  } catch {
-    return {
-      reason: null,
-      message: null,
-    };
+  if (typeof answer === "string") {
+    return answer.trim();
+  }
+
+  if (Array.isArray(answer)) {
+    return answer
+      .map((part) => {
+        if (typeof part === "string") return part;
+        return part?.text || "";
+      })
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
+/*
+ * ============================================================
+ * PROVIDER ERROR TEXT
+ * ============================================================
+ */
+
+function extractProviderError(body, fallbackStatus) {
+  const message =
+    body?.error?.message ||
+    body?.message ||
+    body?.error ||
+    null;
+
+  if (typeof message === "string" && message.trim()) {
+    return message.trim();
+  }
+
+  return `FreeLLMAPI request failed with status ${fallbackStatus}.`;
+}
+
+/*
+ * ============================================================
+ * TIMEOUT
+ * ============================================================
+ */
+
+function resolveTimeout() {
+  const configured = Number(
+    process.env.FREELLMAPI_TIMEOUT_MS
+  );
+
+  if (
+    Number.isFinite(configured) &&
+    configured >= 5000 &&
+    configured <= 120000
+  ) {
+    return configured;
+  }
+
+  return 45000;
+}
+
+/*
+ * ============================================================
+ * REQUEST
+ * ============================================================
+ */
+
+async function callFreeLLMAPI({
+  baseUrl,
+  apiKey,
+  model,
+  messages,
+  signal,
+}) {
+  const controller = new AbortController();
+
+  const timeoutMs = resolveTimeout();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener(
+        "abort",
+        () => controller.abort(),
+        { once: true }
+      );
+    }
+  }
+
+  const startedAt = Date.now();
+
+  try {
+    const url = `${baseUrl}/chat/completions`;
+
+    const response = await fetch(url, {
+      method: "POST",
+
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+
+      signal: controller.signal,
+
+      body: JSON.stringify({
+        /*
+         * FreeLLMAPI supports:
+         *
+         * auto
+         * auto:fast
+         * auto:smart
+         * auto:reliable
+         * auto:balanced
+         *
+         * auto:fast is preferred for Ledger because response
+         * latency matters significantly for an interactive
+         * finance assistant.
+         */
+        model,
+
+        messages,
+
+        /*
+         * Ledger answers should be deterministic and concise.
+         */
+        temperature: 0.2,
+
+        /*
+         * This is intentionally smaller than the old Gemini
+         * limit. It reduces unnecessary generation time while
+         * leaving enough room for a financial analysis answer.
+         */
+        max_tokens: 700,
+
+        /*
+         * Keep sampling predictable.
+         */
+        top_p: 0.9,
+
+        /*
+         * Explicitly disable tool behavior for this assistant.
+         * Ledger currently uses deterministic server-side data,
+         * not LLM tools.
+         */
+        tool_choice: "none",
+      }),
+    });
+
+    const duration = Date.now() - startedAt;
+
+    const rawText = await response.text();
+
+    if (!response.ok) {
+      let body = {};
+
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        // Keep empty object.
+      }
+
+      console.error(
+        `[Ledger AI] FreeLLMAPI failed ` +
+          `status=${response.status} ` +
+          `duration=${duration}ms ` +
+          `message=${extractProviderError(body, response.status)}`
+      );
+
+      throw httpError(
+        mapProviderError(
+          response.status,
+          extractProviderError(body, response.status)
+        ),
+        response.status === 429 ||
+          response.status >= 500
+          ? 503
+          : 502,
+        response.status
+      );
+    }
+
+    let body;
+
+    try {
+      body = JSON.parse(rawText);
+    } catch {
+      console.error(
+        `[Ledger AI] FreeLLMAPI returned invalid JSON ` +
+          `duration=${duration}ms`
+      );
+
+      throw httpError(
+        "Ledger AI received an invalid response from its provider.",
+        502
+      );
+    }
+
+    const answer = extractAnswer(body);
+
+    if (!answer) {
+      console.error(
+        `[Ledger AI] FreeLLMAPI returned no answer ` +
+          `duration=${duration}ms`
+      );
+
+      throw httpError(
+        "Ledger AI did not return an answer. Please try again.",
+        502
+      );
+    }
+
+    console.log(
+      `[Ledger AI] FreeLLMAPI completed in ${duration}ms ` +
+        `(model=${body?.model || model})`
+    );
+
+    return answer;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw httpError(
+        "Ledger AI took too long to respond. Please try again.",
+        504,
+        408
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
-function userFacingMessageFor(status, reason) {
-  if (
-    status === 401 ||
-    status === 403 ||
-    reason === "PERMISSION_DENIED" ||
-    reason === "UNAUTHENTICATED"
-  ) {
-    return "Ledger AI's connection to its provider was rejected. Check that GEMINI_API_KEY is set correctly on the server and has no restrictions blocking this request.";
-  }
+/*
+ * ============================================================
+ * ERROR NORMALIZATION
+ * ============================================================
+ */
 
-  if (
-    status === 400 &&
-    reason === "FAILED_PRECONDITION"
-  ) {
-    return "Ledger AI's provider needs billing enabled for this project/region before it will respond. Enable billing in Google AI Studio.";
-  }
+function mapProviderError(status, providerMessage) {
+  const text = String(providerMessage || "").toLowerCase();
 
-  if (status === 400) {
-    return "Ledger AI sent an invalid request to its provider. Check the GEMINI_MODEL value.";
+  if (status === 401 || status === 403) {
+    return (
+      "Ledger AI's FreeLLMAPI connection was rejected. " +
+      "Check FREELLMAPI_API_KEY on the server."
+    );
   }
 
   if (status === 404) {
-    return "Ledger AI's configured model could not be found. Check the GEMINI_MODEL value.";
+    return (
+      "Ledger AI could not find the configured FreeLLMAPI endpoint. " +
+      "Check FREELLMAPI_BASE_URL."
+    );
+  }
+
+  if (status === 408) {
+    return (
+      "Ledger AI's provider timed out. Please try again."
+    );
   }
 
   if (status === 429) {
-    return "Ledger AI is getting rate-limited by its provider right now. Please wait a moment and try again.";
+    return (
+      "Ledger AI is temporarily rate-limited. " +
+      "FreeLLMAPI should normally fail over to another available model; " +
+      "please try again shortly."
+    );
   }
 
-  if (status === 500) {
-    return "Ledger AI's provider returned an internal error. Please try again shortly.";
+  if (
+    status >= 500 ||
+    text.includes("timeout") ||
+    text.includes("overloaded")
+  ) {
+    return (
+      "Ledger AI's provider is temporarily unavailable. " +
+      "Please try again shortly."
+    );
   }
 
-  if (status === 502) {
-    return "Ledger AI could not reach its provider successfully. Please try again shortly.";
-  }
-
-  if (status === 503) {
-    return "Ledger AI's provider is temporarily overloaded. Please try again shortly.";
-  }
-
-  return "Ledger AI could not answer right now. Please try again shortly.";
+  return (
+    "Ledger AI could not get a valid response from its provider. " +
+    "Please try again shortly."
+  );
 }
 
 /*
  * ============================================================
- * GEMINI API REQUEST
+ * HISTORY NORMALIZATION
  * ============================================================
+ *
+ * The frontend already sends at most six history messages.
+ *
+ * We preserve that behavior.
  */
 
-async function callGemini({
-  apiKey,
-  model,
-  systemInstruction,
-  contents,
-  signal,
+function buildMessages({
+  message,
+  history,
+  snapshot,
 }) {
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/` +
-    `${encodeURIComponent(model)}:generateContent`;
+  const systemInstruction =
+    buildSystemInstruction(snapshot);
 
-  const response = await fetch(url, {
-    method: "POST",
+  const safeHistory = Array.isArray(history)
+    ? history
+        .filter(
+          (item) =>
+            item &&
+            (item.role === "user" ||
+              item.role === "assistant") &&
+            typeof item.content === "string" &&
+            item.content.trim()
+        )
+        .slice(-6)
+    : [];
 
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
+  /*
+   * OpenAI-compatible format:
+   *
+   * system
+   * previous conversation
+   * current user message
+   */
+
+  return [
+    {
+      role: "system",
+      content: systemInstruction,
     },
 
-    signal,
+    ...safeHistory.map((item) => ({
+      role: item.role,
+      content: item.content,
+    })),
 
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [
-          {
-            text: systemInstruction,
-          },
-        ],
-      },
-
-      contents,
-
-      generationConfig: {
-        temperature: 0.25,
-        maxOutputTokens: 900,
-      },
-    }),
-  });
-
-  const rawText = await response.text();
-
-  if (!response.ok) {
-    const {
-      reason,
-      message,
-    } = describeProviderFailure(rawText);
-
-    console.error(
-      `[Ledger AI] provider request failed: ` +
-      `status=${response.status} ` +
-      `reason=${reason || "unknown"} ` +
-      `message=${message || rawText.slice(0, 500) || "(empty body)"}`
-    );
-
-    throw httpError(
-      userFacingMessageFor(
-        response.status,
-        reason
-      ),
-      response.status === 429 ||
-      response.status === 503
-        ? 503
-        : 502,
-      response.status
-    );
-  }
-
-  let body;
-
-  try {
-    body = JSON.parse(rawText);
-  } catch {
-    console.error(
-      `[Ledger AI] provider returned non-JSON success body: ` +
-      rawText.slice(0, 500)
-    );
-
-    throw httpError(
-      "Ledger AI did not return an answer. Please try again.",
-      502
-    );
-  }
-
-  const answer = responseText(body);
-
-  if (!answer) {
-    console.error(
-      "[Ledger AI] provider response did not contain answer text."
-    );
-
-    throw httpError(
-      "Ledger AI did not return an answer. Please try again.",
-      502
-    );
-  }
-
-  return answer;
-}
-
-/*
- * ============================================================
- * WAIT
- * ============================================================
- */
-
-function wait(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+    {
+      role: "user",
+      content: message,
+    },
+  ];
 }
 
 /*
  * ============================================================
  * PUBLIC API
  * ============================================================
+ *
+ * Kept as askGemini() deliberately.
+ *
+ * This means:
+ *
+ *   server/src/routes/ai.js
+ *
+ * does NOT need to change.
  */
 
 export async function askGemini({
@@ -273,200 +488,52 @@ export async function askGemini({
   history = [],
   snapshot,
 }) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const config = getConfig();
 
-  if (!apiKey) {
-    throw httpError(
-      "Ledger AI is not configured yet. Add GEMINI_API_KEY to the API server and try again.",
-      503
-    );
-  }
-
-  const model =
-    process.env.GEMINI_MODEL ||
-    "gemini-2.5-flash";
+  const messages = buildMessages({
+    message,
+    history,
+    snapshot,
+  });
 
   /*
-   * Build the full system instruction using the existing
-   * Ledger master prompt + live Ledger snapshot.
+   * First attempt.
    */
-  const systemInstruction =
-    buildSystemInstruction(snapshot);
+  try {
+    return await callFreeLLMAPI({
+      ...config,
+      messages,
+    });
+  } catch (firstError) {
+    /*
+     * Retry only transient failures.
+     *
+     * FreeLLMAPI itself already performs provider-level failover,
+     * so Ledger only performs ONE client-level retry for a
+     * transient gateway/network problem.
+     */
+    const retryable =
+      firstError?.providerStatus === 408 ||
+      firstError?.providerStatus === 429 ||
+      firstError?.providerStatus === 500 ||
+      firstError?.providerStatus === 502 ||
+      firstError?.providerStatus === 503;
 
-  /*
-   * Preserve existing conversation history behavior.
-   */
-  const contents = [
-    ...history.map((item) => ({
-      role:
-        item.role === "assistant"
-          ? "model"
-          : "user",
-
-      parts: [
-        {
-          text: item.content,
-        },
-      ],
-    })),
-
-    {
-      role: "user",
-
-      parts: [
-        {
-          text: message,
-        },
-      ],
-    },
-  ];
-
-  /*
-   * ==========================================================
-   * TIMEOUT
-   * ==========================================================
-   *
-   * The previous implementation aborted after 20 seconds.
-   *
-   * That is what caused:
-   *
-   *   Ledger AI took too long to respond.
-   *
-   * Render then returned:
-   *
-   *   504
-   *
-   * Use 60 seconds instead.
-   *
-   * This value can also be configured through:
-   *
-   *   GEMINI_TIMEOUT_MS
-   *
-   * on Render.
-   */
-
-  const configuredTimeout = Number(
-    process.env.GEMINI_TIMEOUT_MS
-  );
-
-  const timeoutMs =
-    Number.isFinite(configuredTimeout) &&
-    configuredTimeout >= 10000 &&
-    configuredTimeout <= 120000
-      ? configuredTimeout
-      : 60000;
-
-  /*
-   * Retry transient provider failures.
-   *
-   * 429 = rate limit
-   * 500 = provider internal error
-   * 503 = provider unavailable
-   *
-   * Timeouts are retried once as well.
-   */
-  const maxAttempts = 2;
-
-  let lastError;
-
-  for (
-    let attempt = 1;
-    attempt <= maxAttempts;
-    attempt += 1
-  ) {
-    const controller =
-      new AbortController();
-
-    const timeout = setTimeout(
-      () => {
-        controller.abort();
-      },
-      timeoutMs
-    );
-
-    const startedAt = Date.now();
-
-    try {
-      console.log(
-        `[Ledger AI] Gemini request started ` +
-        `(attempt ${attempt}/${maxAttempts}, model=${model}, timeout=${timeoutMs}ms)`
-      );
-
-      const answer =
-        await callGemini({
-          apiKey,
-          model,
-          systemInstruction,
-          contents,
-          signal: controller.signal,
-        });
-
-      const duration =
-        Date.now() - startedAt;
-
-      console.log(
-        `[Ledger AI] Gemini request completed in ${duration}ms`
-      );
-
-      return answer;
-    } catch (error) {
-      const duration =
-        Date.now() - startedAt;
-
-      if (error?.name === "AbortError") {
-        lastError = httpError(
-          "Ledger AI took too long to respond. Please try again.",
-          504
-        );
-
-        lastError.providerStatus = 408;
-
-        console.error(
-          `[Ledger AI] Gemini request timed out after ${duration}ms ` +
-          `(attempt ${attempt}/${maxAttempts})`
-        );
-      } else {
-        lastError = error;
-
-        console.error(
-          `[Ledger AI] Gemini request failed after ${duration}ms ` +
-          `(attempt ${attempt}/${maxAttempts}):`,
-          error?.message || error
-        );
-      }
-
-      const retryable =
-        lastError?.providerStatus === 408 ||
-        lastError?.providerStatus === 429 ||
-        lastError?.providerStatus === 500 ||
-        lastError?.providerStatus === 503;
-
-      if (
-        retryable &&
-        attempt < maxAttempts
-      ) {
-        /*
-         * Small exponential backoff.
-         *
-         * 1st retry waits 1 second.
-         */
-        const retryDelay =
-          1000 * attempt;
-
-        console.log(
-          `[Ledger AI] Retrying Gemini request in ${retryDelay}ms`
-        );
-
-        await wait(retryDelay);
-
-        continue;
-      }
-
-      throw lastError;
-    } finally {
-      clearTimeout(timeout);
+    if (!retryable) {
+      throw firstError;
     }
-  }
 
-  throw lastError;
+    console.warn(
+      "[Ledger AI] Retrying FreeLLMAPI request once after transient failure."
+    );
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, 600)
+    );
+
+    return callFreeLLMAPI({
+      ...config,
+      messages,
+    });
+  }
 }
