@@ -101,6 +101,15 @@ ${JSON.stringify(snapshot, null, 2)}
  * ============================================================
  * RESPONSE EXTRACTION
  * ============================================================
+ *
+ * NOTE: Gemini can stop generating for reasons other than finishing
+ * naturally. The most important one here is "MAX_TOKENS" — the
+ * response was cut off mid-sentence/mid-list because it ran out of
+ * output budget. Previously this function only looked at whether
+ * *any* text came back, so a half-finished answer (e.g. cut off
+ * mid-bullet-list) was returned to the user as if it were complete.
+ * That was the source of the "partial answers" bug.
+ * ============================================================
  */
 
 function extractAnswer(body) {
@@ -116,6 +125,10 @@ function extractAnswer(body) {
   }
 
   return "";
+}
+
+function getFinishReason(body) {
+  return body?.candidates?.[0]?.finishReason || null;
 }
 
 /*
@@ -222,10 +235,16 @@ async function callGemini({
           temperature: 0.2,
 
           /*
-           * Enough room for a financial analysis answer without
-           * unnecessary generation time.
+           * The master prompt targets ~250-400 words, but it renders
+           * that as compact pipe-separated number blocks and headers
+           * (see prompt.md Section 39), which costs noticeably more
+           * tokens than the same word count in plain prose. 700 was
+           * cutting answers off mid-list. This gives real headroom
+           * so a compliant, on-budget answer never gets truncated —
+           * it does not change how long answers are meant to be,
+           * since that's enforced by the prompt itself.
            */
-          maxOutputTokens: 700,
+          maxOutputTokens: 1536,
 
           /*
            * Keep sampling predictable.
@@ -285,17 +304,39 @@ async function callGemini({
     }
 
     const answer = extractAnswer(body);
+    const finishReason = getFinishReason(body);
 
     if (!answer) {
       console.error(
         `[Ledger AI] Gemini returned no answer ` +
           `duration=${duration}ms ` +
-          `finishReason=${body?.candidates?.[0]?.finishReason}`
+          `finishReason=${finishReason}`
       );
 
       throw httpError(
         "Ledger AI did not return an answer. Please try again.",
         502
+      );
+    }
+
+    /*
+     * The response body came back fine (HTTP 200, valid JSON, some
+     * text) but Gemini stopped early because it ran out of output
+     * tokens. That means `answer` is a truncated fragment, not a
+     * finished response. Treat this the same as a transient failure
+     * so the caller retries once, instead of silently handing the
+     * user half a sentence.
+     */
+    if (finishReason === "MAX_TOKENS") {
+      console.error(
+        `[Ledger AI] Gemini response was truncated (MAX_TOKENS) ` +
+          `duration=${duration}ms`
+      );
+
+      throw httpError(
+        "Ledger AI's answer was cut off before it finished. Please try again.",
+        503,
+        "TRUNCATED"
       );
     }
 
@@ -476,21 +517,33 @@ export async function askGemini({
     });
   } catch (firstError) {
     /*
-     * Retry only transient failures.
+     * Retry only transient failures — provider overload/rate-limit
+     * (429/500/502/503) or a response that got cut off mid-answer
+     * (our synthetic "TRUNCATED" status). A retry is cheap for these
+     * because the cause is usually a one-off blip on Gemini's side.
+     *
+     * Deliberately NOT retrying on 408 (our own request timing out
+     * after resolveTimeout() ms, default 45s): if the first call
+     * already took that long, retrying just doubles the user's wait
+     * (up to ~90s) without much chance of a faster second attempt.
+     * That was making the "takes a long time and shows nothing"
+     * symptom worse. It's better to fail fast here and let the user
+     * decide to try again.
      */
     const retryable =
-      firstError?.providerStatus === 408 ||
       firstError?.providerStatus === 429 ||
       firstError?.providerStatus === 500 ||
       firstError?.providerStatus === 502 ||
-      firstError?.providerStatus === 503;
+      firstError?.providerStatus === 503 ||
+      firstError?.providerStatus === "TRUNCATED";
 
     if (!retryable) {
       throw firstError;
     }
 
     console.warn(
-      "[Ledger AI] Retrying Gemini request once after transient failure."
+      "[Ledger AI] Retrying Gemini request once after " +
+        `${firstError.providerStatus === "TRUNCATED" ? "a truncated response" : "a transient failure"}.`
     );
 
     await new Promise((resolve) =>
