@@ -5,9 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 // no AbortController is created and the request waits as long as it always
 // did). When provided, the request is aborted after `timeoutMs` and a clear,
 // user-facing error is thrown instead of leaving the caller's "loading"
-// state spinning forever with nothing to show. This is what backs the
-// Ledger AI chat request below, where a stalled connection or an unusually
-// slow provider round trip previously just hung with no feedback.
+// state spinning forever with nothing to show.
 async function request(path, options = {}) {
   const { timeoutMs, ...fetchOptions } = options;
 
@@ -142,13 +140,108 @@ export const fetchMarketFund = (schemeCode) => request(`/market/${encodeURICompo
 export const fetchBudgets = async (month) => collection(await request(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets")).map(withId);
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
-export const chatWithLedgerAI = (data) =>
-  request("/ai/chat", {
-    method: "POST",
-    body: JSON.stringify(data),
-    // Must stay comfortably above the server's own GEMINI_TIMEOUT_MS
-    // (default 90000ms — see server/src/services/ai/gemini.js). If this
-    // is shorter than the server's budget, the client gives up and shows
-    // an error even on requests the server would have finished fine.
-    timeoutMs: 100000,
+
+// Must stay byte-for-byte identical to STREAM_ERROR_MARKER in
+// server/src/routes/ai.js.
+const STREAM_ERROR_MARKER = "\u0000LEDGER_AI_STREAM_ERROR\u0000";
+
+// Streams the Ledger AI answer instead of waiting for the whole thing.
+// `onChunk(text)` (optional) is called as fragments arrive so the caller
+// can render text progressively. Resolves to the exact same shape as
+// before — { answer, generatedAt } — and rejects with the exact same
+// user-facing error messages as before, so existing callers that don't
+// pass onChunk still work unchanged.
+export function chatWithLedgerAI({ message, history }, onChunk) {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      const controller = new AbortController();
+      let idleTimeout;
+
+      const resetIdleTimeout = () => {
+        clearTimeout(idleTimeout);
+        // Idle timeout, not total-time: resets every time a chunk
+        // arrives. 30s of total silence from the server is treated
+        // as a stall.
+        idleTimeout = setTimeout(() => controller.abort(), 30000);
+      };
+
+      resetIdleTimeout();
+
+      let res;
+      try {
+        res = await fetch(`${API_URL}/ai/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ message, history }),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        clearTimeout(idleTimeout);
+        if (err.name === "AbortError") {
+          reject(new Error("Ledger AI is taking longer than usual to respond. Please try again in a moment."));
+        } else {
+          reject(new Error("Can't reach the server. It may be down or misconfigured — please try again in a moment."));
+        }
+        return;
+      }
+
+      if (!res.ok) {
+        clearTimeout(idleTimeout);
+        if (res.status === 401) window.dispatchEvent(new Event("ledger:session-expired"));
+        const body = await res.json().catch(() => ({}));
+        reject(new Error(body.error || `Request failed (${res.status})`));
+        return;
+      }
+
+      const finish = (text) => {
+        const markerIndex = text.indexOf(STREAM_ERROR_MARKER);
+        if (markerIndex !== -1) {
+          const message = text.slice(markerIndex + STREAM_ERROR_MARKER.length).trim();
+          reject(new Error(message || "Ledger AI could not answer right now."));
+          return;
+        }
+        resolve({ answer: text.trim(), generatedAt: new Date().toISOString() });
+      };
+
+      if (!res.body) {
+        // Fallback for any environment without a readable stream body —
+        // same end result as before, just without progressive display.
+        clearTimeout(idleTimeout);
+        finish(await res.text());
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      let reportedLength = 0;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          resetIdleTimeout();
+          full += decoder.decode(value, { stream: true });
+
+          if (full.indexOf(STREAM_ERROR_MARKER) === -1 && onChunk && full.length > reportedLength) {
+            onChunk(full.slice(reportedLength));
+            reportedLength = full.length;
+          }
+        }
+      } catch (err) {
+        clearTimeout(idleTimeout);
+        if (err.name === "AbortError") {
+          reject(new Error("Ledger AI is taking longer than usual to respond. Please try again in a moment."));
+        } else {
+          reject(new Error("Can't reach the server. It may be down or misconfigured — please try again in a moment."));
+        }
+        return;
+      }
+
+      clearTimeout(idleTimeout);
+      finish(full);
+    })();
   });
+}
