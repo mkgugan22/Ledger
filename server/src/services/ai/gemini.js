@@ -49,7 +49,7 @@ try {
  *   gemini-2.5-flash
  *
  * GEMINI_TIMEOUT_MS
- *   Optional. Defaults to 45000.
+ *   Optional. Defaults to 60000.
  */
 
 function getConfig() {
@@ -169,7 +169,14 @@ function resolveTimeout() {
     return configured;
   }
 
-  return 45000;
+  /*
+   * Raised from 45s to 60s. This is a safety margin, not the main
+   * fix — the main fix is disabling "thinking" below, which is what
+   * was actually causing calls to run long enough to hit the old
+   * 45s ceiling in the first place. The extra margin just absorbs a
+   * slow cold start (e.g. Render free tier) on top of that.
+   */
+  return 60000;
 }
 
 /*
@@ -250,6 +257,25 @@ async function callGemini({
            * Keep sampling predictable.
            */
           topP: 0.9,
+
+          /*
+           * Gemini 2.5 Flash has "thinking" (extended internal
+           * reasoning before the visible answer) turned ON by
+           * default, with a dynamic budget the model chooses for
+           * itself. That's the most likely reason requests were
+           * consistently hitting the timeout: thinking tokens are
+           * generated first, count against latency, and can grow
+           * unpredictably large on a big prompt like this one (the
+           * full master prompt plus the whole ledger JSON snapshot).
+           * The prompt already gives Gemini an explicit step-by-step
+           * procedure and exact output format to follow, so open-
+           * ended thinking isn't buying anything here — it's pure
+           * overhead. Disabling it (thinkingBudget: 0) should cut
+           * response time dramatically and make it consistent.
+           */
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
         },
       }),
     });
@@ -523,12 +549,12 @@ export async function askGemini({
      * because the cause is usually a one-off blip on Gemini's side.
      *
      * Deliberately NOT retrying on 408 (our own request timing out
-     * after resolveTimeout() ms, default 45s): if the first call
+     * after resolveTimeout() ms, default 60s): if the first call
      * already took that long, retrying just doubles the user's wait
-     * (up to ~90s) without much chance of a faster second attempt.
-     * That was making the "takes a long time and shows nothing"
-     * symptom worse. It's better to fail fast here and let the user
-     * decide to try again.
+     * without much chance of a faster second attempt. That was
+     * making the "takes a long time and shows nothing" symptom
+     * worse. It's better to fail fast here and let the user decide
+     * to try again.
      */
     const retryable =
       firstError?.providerStatus === 429 ||
