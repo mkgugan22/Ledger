@@ -146,5 +146,9 @@ export const chatWithLedgerAI = (data) =>
   request("/ai/chat", {
     method: "POST",
     body: JSON.stringify(data),
-    timeoutMs: 60000,
+    // Must stay comfortably above the server's own GEMINI_TIMEOUT_MS
+    // (default 90000ms — see server/src/services/ai/gemini.js). If this
+    // is shorter than the server's budget, the client gives up and shows
+    // an error even on requests the server would have finished fine.
+    timeoutMs: 100000,
   });
