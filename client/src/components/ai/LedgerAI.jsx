@@ -36,12 +36,13 @@ export default function LedgerAI() {
   const [messages, setMessages] = useState([WELCOME]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState("");
   const messagesEnd = useRef(null);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, sending]);
+  }, [messages, sending, streamingText]);
 
   async function submit(question) {
     const message = question.trim();
@@ -53,14 +54,18 @@ export default function LedgerAI() {
     setDraft("");
     setError("");
     setSending(true);
+    setStreamingText("");
 
     try {
-      const result = await chatWithLedgerAI({ message, history: prior });
+      const result = await chatWithLedgerAI({ message, history: prior }, (chunk) => {
+        setStreamingText((text) => text + chunk);
+      });
       setMessages((items) => [...items, { role: "assistant", content: result.answer }]);
     } catch (requestError) {
       setError(requestError.message || "Ledger AI could not answer right now.");
     } finally {
       setSending(false);
+      setStreamingText("");
     }
   }
 
@@ -140,10 +145,18 @@ export default function LedgerAI() {
             {sending && (
               <div className="d-flex gap-2">
                 <LedgerAssistantAvatar thinking size="small" />
-                <div className="lg-ai-message assistant d-flex align-items-center gap-2">
-                  <Spinner animation="grow" size="sm" />
-                  <span className="small">Reviewing your Ledger…</span>
-                </div>
+                {streamingText ? (
+                  <div className="lg-ai-message assistant">
+                    {streamingText.split("\n").map((line, index) => (
+                      <p key={index} className="mb-0">{line || "\u00a0"}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="lg-ai-message assistant d-flex align-items-center gap-2">
+                    <Spinner animation="grow" size="sm" />
+                    <span className="small">Reviewing your Ledger…</span>
+                  </div>
+                )}
               </div>
             )}
 
