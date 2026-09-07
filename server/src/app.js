@@ -35,7 +35,24 @@ export function createApp() {
   // compressed formats, so the `compression` package's default filter
   // (based on mime-db's `compressible` flag) skips them automatically —
   // this only kicks in where it actually saves bandwidth.
-  app.use(compression());
+  //
+  // EXCEPTION: /api/ai/chat is a streamed, token-by-token response (see
+  // routes/ai.js). Node's gzip stream buffers internally and only
+  // releases bytes once its buffer fills or the response ends — for a
+  // short chat answer that buffer never fills, so compression silently
+  // held back every streamed chunk until the whole response finished,
+  // making the stream arrive all-at-once (or not at all before the
+  // client's timeout). Every other route keeps gzip exactly as before;
+  // only this one streaming endpoint is excluded, since the bandwidth
+  // savings on a short text answer are negligible anyway.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.path === "/api/ai/chat") return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
   app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
