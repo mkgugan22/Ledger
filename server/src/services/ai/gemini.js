@@ -49,7 +49,9 @@ try {
  *   gemini-2.5-flash
  *
  * GEMINI_TIMEOUT_MS
- *   Optional. Defaults to 90000.
+ *   Optional. Defaults to 90000. As of the streaming rewrite below,
+ *   this is an IDLE timeout (max gap between chunks), not a total
+ *   response timeout — see resolveTimeout().
  */
 
 function getConfig() {
@@ -99,40 +101,6 @@ ${JSON.stringify(snapshot, null, 2)}
 
 /*
  * ============================================================
- * RESPONSE EXTRACTION
- * ============================================================
- *
- * NOTE: Gemini can stop generating for reasons other than finishing
- * naturally. The most important one here is "MAX_TOKENS" — the
- * response was cut off mid-sentence/mid-list because it ran out of
- * output budget. Previously this function only looked at whether
- * *any* text came back, so a half-finished answer (e.g. cut off
- * mid-bullet-list) was returned to the user as if it were complete.
- * That was the source of the "partial answers" bug.
- * ============================================================
- */
-
-function extractAnswer(body) {
-  const parts = body?.candidates?.[0]?.content?.parts;
-
-  if (Array.isArray(parts)) {
-    return parts
-      .map((part) =>
-        typeof part?.text === "string" ? part.text : ""
-      )
-      .join("")
-      .trim();
-  }
-
-  return "";
-}
-
-function getFinishReason(body) {
-  return body?.candidates?.[0]?.finishReason || null;
-}
-
-/*
- * ============================================================
  * PROVIDER ERROR TEXT
  * ============================================================
  */
@@ -155,14 +123,17 @@ function extractProviderError(body, fallbackStatus) {
  * TIMEOUT
  * ============================================================
  *
- * Was defaulting to 60000ms. On Render's free/starter tier, a cold
- * start alone can eat 20-30s before Gemini is even called, which
- * left very little real budget for the model call itself and was
- * the direct cause of "Ledger AI took too long to respond" firing
- * on ordinary, non-heavy questions. Raised the default floor to
- * 90000ms so a cold start + a normal Gemini round trip both fit
- * comfortably inside one attempt. GEMINI_TIMEOUT_MS still overrides
- * this from the environment if you want to tune it per-deployment.
+ * Was a single 45-90s cap on the ENTIRE request. On Render's free/
+ * starter tier a cold start alone can eat 20-30s before Gemini is
+ * even called, and a legitimately busy provider can take a while
+ * even once it's actively producing output — either one could trip
+ * a total-time cap even though the request was making real progress.
+ *
+ * Now that responses are streamed, this timeout is reset every time
+ * a chunk of text arrives (see callGeminiStream below), so it only
+ * fires if the connection genuinely stalls with no data for this
+ * long — not just because the whole answer took a while to finish.
+ * GEMINI_TIMEOUT_MS still overrides this from the environment.
  * ============================================================
  */
 
@@ -180,214 +151,6 @@ function resolveTimeout() {
   }
 
   return 90000;
-}
-
-/*
- * ============================================================
- * REQUEST
- * ============================================================
- */
-
-async function callGemini({
-  apiKey,
-  model,
-  systemInstruction,
-  contents,
-  signal,
-}) {
-  const controller = new AbortController();
-
-  const timeoutMs = resolveTimeout();
-
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
-  if (signal) {
-    if (signal.aborted) {
-      controller.abort();
-    } else {
-      signal.addEventListener(
-        "abort",
-        () => controller.abort(),
-        { once: true }
-      );
-    }
-  }
-
-  const startedAt = Date.now();
-
-  try {
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/` +
-      `${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      signal: controller.signal,
-
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
-
-        contents,
-
-        generationConfig: {
-          /*
-           * Ledger answers should be deterministic and concise.
-           */
-          temperature: 0.2,
-
-          /*
-           * The master prompt targets ~250-400 words, but it renders
-           * that as compact pipe-separated number blocks and headers
-           * (see prompt.md Section 39), which costs noticeably more
-           * tokens than the same word count in plain prose. 700 was
-           * cutting answers off mid-list. This gives real headroom
-           * so a compliant, on-budget answer never gets truncated —
-           * it does not change how long answers are meant to be,
-           * since that's enforced by the prompt itself.
-           */
-          maxOutputTokens: 1536,
-
-          /*
-           * Keep sampling predictable.
-           */
-          topP: 0.9,
-
-          /*
-           * Gemini 2.5 Flash has "thinking" (extended internal
-           * reasoning before the visible answer) turned ON by
-           * default, with a dynamic budget the model chooses for
-           * itself. That's the most likely reason requests were
-           * consistently hitting the timeout: thinking tokens are
-           * generated first, count against latency, and can grow
-           * unpredictably large on a big prompt like this one (the
-           * full master prompt plus the whole ledger JSON snapshot).
-           * The prompt already gives Gemini an explicit step-by-step
-           * procedure and exact output format to follow, so open-
-           * ended thinking isn't buying anything here — it's pure
-           * overhead. Disabling it (thinkingBudget: 0) should cut
-           * response time dramatically and make it consistent.
-           */
-          thinkingConfig: {
-            thinkingBudget: 0,
-          },
-        },
-      }),
-    });
-
-    const duration = Date.now() - startedAt;
-
-    const rawText = await response.text();
-
-    if (!response.ok) {
-      let body = {};
-
-      try {
-        body = JSON.parse(rawText);
-      } catch {
-        // Keep empty object.
-      }
-
-      console.error(
-        `[Ledger AI] Gemini failed ` +
-          `status=${response.status} ` +
-          `duration=${duration}ms ` +
-          `message=${extractProviderError(body, response.status)}`
-      );
-
-      throw httpError(
-        mapProviderError(
-          response.status,
-          extractProviderError(body, response.status)
-        ),
-        response.status === 429 ||
-          response.status >= 500
-          ? 503
-          : 502,
-        response.status
-      );
-    }
-
-    let body;
-
-    try {
-      body = JSON.parse(rawText);
-    } catch {
-      console.error(
-        `[Ledger AI] Gemini returned invalid JSON ` +
-          `duration=${duration}ms`
-      );
-
-      throw httpError(
-        "Ledger AI received an invalid response from its provider.",
-        502
-      );
-    }
-
-    const answer = extractAnswer(body);
-    const finishReason = getFinishReason(body);
-
-    if (!answer) {
-      console.error(
-        `[Ledger AI] Gemini returned no answer ` +
-          `duration=${duration}ms ` +
-          `finishReason=${finishReason}`
-      );
-
-      throw httpError(
-        "Ledger AI did not return an answer. Please try again.",
-        502
-      );
-    }
-
-    /*
-     * The response body came back fine (HTTP 200, valid JSON, some
-     * text) but Gemini stopped early because it ran out of output
-     * tokens. That means `answer` is a truncated fragment, not a
-     * finished response. Treat this the same as a transient failure
-     * so the caller retries once, instead of silently handing the
-     * user half a sentence.
-     */
-    if (finishReason === "MAX_TOKENS") {
-      console.error(
-        `[Ledger AI] Gemini response was truncated (MAX_TOKENS) ` +
-          `duration=${duration}ms`
-      );
-
-      throw httpError(
-        "Ledger AI's answer was cut off before it finished. Please try again.",
-        503,
-        "TRUNCATED"
-      );
-    }
-
-    console.log(
-      `[Ledger AI] Gemini completed in ${duration}ms ` +
-        `(model=${model})`
-    );
-
-    return answer;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw httpError(
-        "Ledger AI took too long to respond. Please try again.",
-        504,
-        408
-      );
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 /*
@@ -510,23 +273,243 @@ function buildRequest({
 
 /*
  * ============================================================
- * PUBLIC API
+ * STREAMING REQUEST
  * ============================================================
  *
- * Kept as askGemini() deliberately.
- *
- * This means:
- *
- *   server/src/routes/ai.js
- *
- * does NOT need to change.
+ * Calls Gemini's streamGenerateContent (Server-Sent Events) instead
+ * of generateContent. `onChunk(text)` is invoked as each fragment of
+ * the answer arrives, so the caller (the /ai/chat route) can forward
+ * it to the browser immediately instead of waiting for the entire
+ * answer to finish generating.
+ * ============================================================
  */
 
-export async function askGemini({
-  message,
-  history = [],
-  snapshot,
+async function callGeminiStream({
+  apiKey,
+  model,
+  systemInstruction,
+  contents,
+  signal,
+  onChunk,
 }) {
+  const controller = new AbortController();
+  const timeoutMs = resolveTimeout();
+
+  let timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const resetTimeout = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => controller.abort(), timeoutMs);
+  };
+
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener(
+        "abort",
+        () => controller.abort(),
+        { once: true }
+      );
+    }
+  }
+
+  const startedAt = Date.now();
+  let fullAnswer = "";
+  let finishReason = null;
+
+  try {
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/` +
+      `${encodeURIComponent(model)}:streamGenerateContent` +
+      `?alt=sse&key=${encodeURIComponent(apiKey)}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      signal: controller.signal,
+
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemInstruction }],
+        },
+
+        contents,
+
+        generationConfig: {
+          /*
+           * Ledger answers should be deterministic and concise.
+           */
+          temperature: 0.2,
+
+          /*
+           * The master prompt targets ~250-400 words, but it renders
+           * that as compact pipe-separated number blocks and headers,
+           * which costs more tokens than the same word count in plain
+           * prose. This gives headroom so a compliant answer never
+           * gets truncated mid-list.
+           */
+          maxOutputTokens: 1536,
+
+          /*
+           * Keep sampling predictable.
+           */
+          topP: 0.9,
+
+          /*
+           * Disable Gemini 2.5's extended internal "thinking" pass.
+           * The prompt already gives an explicit procedure and output
+           * format to follow, so open-ended thinking is pure latency
+           * overhead here, not extra answer quality.
+           */
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const rawText = await response.text();
+      let body = {};
+
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        // Keep empty object.
+      }
+
+      console.error(
+        `[Ledger AI] Gemini stream failed ` +
+          `status=${response.status} ` +
+          `message=${extractProviderError(body, response.status)}`
+      );
+
+      throw httpError(
+        mapProviderError(
+          response.status,
+          extractProviderError(body, response.status)
+        ),
+        response.status === 429 ||
+          response.status >= 500
+          ? 503
+          : 502,
+        response.status
+      );
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      resetTimeout();
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+
+        const jsonStr = trimmed.slice(5).trim();
+        if (!jsonStr || jsonStr === "[DONE]") continue;
+
+        let payload;
+
+        try {
+          payload = JSON.parse(jsonStr);
+        } catch {
+          continue;
+        }
+
+        const parts = payload?.candidates?.[0]?.content?.parts;
+
+        if (Array.isArray(parts)) {
+          const text = parts
+            .map((part) =>
+              typeof part?.text === "string" ? part.text : ""
+            )
+            .join("");
+
+          if (text) {
+            fullAnswer += text;
+            onChunk(text);
+          }
+        }
+
+        const reason = payload?.candidates?.[0]?.finishReason;
+        if (reason) finishReason = reason;
+      }
+    }
+
+    const duration = Date.now() - startedAt;
+
+    if (!fullAnswer) {
+      console.error(
+        `[Ledger AI] Gemini stream returned no answer ` +
+          `duration=${duration}ms finishReason=${finishReason}`
+      );
+
+      throw httpError(
+        "Ledger AI did not return an answer. Please try again.",
+        502
+      );
+    }
+
+    if (finishReason === "MAX_TOKENS") {
+      console.error(
+        `[Ledger AI] Gemini stream response was truncated (MAX_TOKENS) ` +
+          `duration=${duration}ms`
+      );
+
+      throw httpError(
+        "Ledger AI's answer was cut off before it finished. Please try again.",
+        503,
+        "TRUNCATED"
+      );
+    }
+
+    console.log(
+      `[Ledger AI] Gemini stream completed in ${duration}ms ` +
+        `(model=${model})`
+    );
+
+    return fullAnswer;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw httpError(
+        "Ledger AI took too long to respond. Please try again.",
+        504,
+        408
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/*
+ * ============================================================
+ * PUBLIC API
+ * ============================================================
+ */
+
+export async function askGeminiStream(
+  { message, history = [], snapshot },
+  onChunk
+) {
   const config = getConfig();
 
   const { systemInstruction, contents } = buildRequest({
@@ -535,54 +518,68 @@ export async function askGemini({
     snapshot,
   });
 
-  /*
-   * First attempt.
-   */
+  let emittedAny = false;
+
+  const trackedOnChunk = (text) => {
+    emittedAny = true;
+    onChunk(text);
+  };
+
   try {
-    return await callGemini({
+    return await callGeminiStream({
       ...config,
       systemInstruction,
       contents,
+      onChunk: trackedOnChunk,
     });
   } catch (firstError) {
     /*
-     * Retry only transient failures — provider overload/rate-limit
-     * (429/500/502/503) or a response that got cut off mid-answer
-     * (our synthetic "TRUNCATED" status). A retry is cheap for these
-     * because the cause is usually a one-off blip on Gemini's side.
-     *
-     * Deliberately NOT retrying on 408 (our own request timing out
-     * after resolveTimeout() ms, default 90s): if the first call
-     * already took that long, retrying just doubles the user's wait
-     * without much chance of a faster second attempt. That was
-     * making the "takes a long time and shows nothing" symptom
-     * worse. It's better to fail fast here and let the user decide
-     * to try again.
+     * Only safe to retry if NOTHING has been streamed to the client
+     * yet — otherwise a retry would re-send the answer from the
+     * start and duplicate text the user already sees. This covers
+     * the same transient-failure cases as before (provider overload
+     * or rate limit), just narrowed to "failed before any output".
      */
     const retryable =
-      firstError?.providerStatus === 429 ||
-      firstError?.providerStatus === 500 ||
-      firstError?.providerStatus === 502 ||
-      firstError?.providerStatus === 503 ||
-      firstError?.providerStatus === "TRUNCATED";
+      !emittedAny &&
+      (firstError?.providerStatus === 429 ||
+        firstError?.providerStatus === 500 ||
+        firstError?.providerStatus === 502 ||
+        firstError?.providerStatus === 503);
 
     if (!retryable) {
       throw firstError;
     }
 
     console.warn(
-      "[Ledger AI] Retrying Gemini request once after " +
-        `${firstError.providerStatus === "TRUNCATED" ? "a truncated response" : "a transient failure"}.`
+      "[Ledger AI] Retrying Gemini stream once after a transient failure."
     );
 
     await new Promise((resolve) =>
       setTimeout(resolve, 600)
     );
 
-    return callGemini({
+    return callGeminiStream({
       ...config,
       systemInstruction,
       contents,
+      onChunk: trackedOnChunk,
     });
   }
+}
+
+/*
+ * Kept for compatibility with anything that still wants a single
+ * awaited string instead of a stream — same input/output contract
+ * as the original askGemini(). Not used by the /ai/chat route
+ * anymore (it uses askGeminiStream directly), but safe to keep.
+ */
+export async function askGemini(args) {
+  let full = "";
+
+  await askGeminiStream(args, (chunk) => {
+    full += chunk;
+  });
+
+  return full;
 }
