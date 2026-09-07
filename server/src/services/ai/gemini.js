@@ -49,7 +49,7 @@ try {
  *   gemini-2.5-flash
  *
  * GEMINI_TIMEOUT_MS
- *   Optional. Defaults to 60000.
+ *   Optional. Defaults to 90000.
  */
 
 function getConfig() {
@@ -154,6 +154,16 @@ function extractProviderError(body, fallbackStatus) {
  * ============================================================
  * TIMEOUT
  * ============================================================
+ *
+ * Was defaulting to 60000ms. On Render's free/starter tier, a cold
+ * start alone can eat 20-30s before Gemini is even called, which
+ * left very little real budget for the model call itself and was
+ * the direct cause of "Ledger AI took too long to respond" firing
+ * on ordinary, non-heavy questions. Raised the default floor to
+ * 90000ms so a cold start + a normal Gemini round trip both fit
+ * comfortably inside one attempt. GEMINI_TIMEOUT_MS still overrides
+ * this from the environment if you want to tune it per-deployment.
+ * ============================================================
  */
 
 function resolveTimeout() {
@@ -169,14 +179,7 @@ function resolveTimeout() {
     return configured;
   }
 
-  /*
-   * Raised from 45s to 60s. This is a safety margin, not the main
-   * fix — the main fix is disabling "thinking" below, which is what
-   * was actually causing calls to run long enough to hit the old
-   * 45s ceiling in the first place. The extra margin just absorbs a
-   * slow cold start (e.g. Render free tier) on top of that.
-   */
-  return 60000;
+  return 90000;
 }
 
 /*
@@ -549,7 +552,7 @@ export async function askGemini({
      * because the cause is usually a one-off blip on Gemini's side.
      *
      * Deliberately NOT retrying on 408 (our own request timing out
-     * after resolveTimeout() ms, default 60s): if the first call
+     * after resolveTimeout() ms, default 90s): if the first call
      * already took that long, retrying just doubles the user's wait
      * without much chance of a faster second attempt. That was
      * making the "takes a long time and shows nothing" symptom
