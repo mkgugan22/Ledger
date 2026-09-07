@@ -1,15 +1,39 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+// `timeoutMs` is an optional, opt-in addition to the normal fetch options.
+// When omitted (every existing call site keeps working exactly as before —
+// no AbortController is created and the request waits as long as it always
+// did). When provided, the request is aborted after `timeoutMs` and a clear,
+// user-facing error is thrown instead of leaving the caller's "loading"
+// state spinning forever with nothing to show. This is what backs the
+// Ledger AI chat request below, where a stalled connection or an unusually
+// slow provider round trip previously just hung with no feedback.
 async function request(path, options = {}) {
+  const { timeoutMs, ...fetchOptions } = options;
+
+  let controller;
+  let timeoutId;
+
+  if (timeoutMs) {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
   let res;
   try {
     res = await fetch(`${API_URL}${path}`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      ...options,
+      ...fetchOptions,
+      ...(controller ? { signal: controller.signal } : {}),
     });
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("Ledger AI is taking longer than usual to respond. Please try again in a moment.");
+    }
     throw new Error("Can't reach the server. It may be down or misconfigured — please try again in a moment.");
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
   if (!res.ok) {
     if (res.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event("ledger:session-expired"));
@@ -122,4 +146,5 @@ export const chatWithLedgerAI = (data) =>
   request("/ai/chat", {
     method: "POST",
     body: JSON.stringify(data),
+    timeoutMs: 60000,
   });
