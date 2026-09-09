@@ -141,6 +141,12 @@ export const fetchBudgets = async (month) => collection(await request(month ? `/
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
 
+// Restores the visible Ledger AI conversation — used on mount so a
+// logout, a page reload, or just switching tabs doesn't drop the thread.
+// Returns { messages: [{ role, content, createdAt }, ...] } in
+// chronological order; an empty array means there's no history yet.
+export const fetchLedgerAIHistory = () => request("/ai/history");
+
 // Must stay byte-for-byte identical to STREAM_ERROR_MARKER in
 // server/src/routes/ai.js.
 const STREAM_ERROR_MARKER = "\u0000LEDGER_AI_STREAM_ERROR\u0000";
