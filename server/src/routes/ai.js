@@ -29,6 +29,12 @@ function hashSnapshot(snapshot) {
   return crypto.createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
 }
 
+// How many past exchanges (question + answer pairs) to hand back to the
+// client on load. Kept modest — this is for restoring the visible
+// conversation, not a full audit trail (that's what AiChatLog itself is
+// for), and it keeps the response small on slow connections.
+const HISTORY_EXCHANGE_LIMIT = 40;
+
 // Plain-text, unbuffered stream headers. X-Accel-Buffering covers
 // Render/Nginx-style proxies that would otherwise hold the whole
 // response until it ends, which would silently turn this back into
@@ -40,6 +46,31 @@ function startStream(res) {
   res.setHeader("X-Accel-Buffering", "no");
   if (typeof res.flushHeaders === "function") res.flushHeaders();
 }
+
+// Lets the client restore the visible conversation after a logout, a page
+// reload, or simply switching tabs — none of which the browser tab keeps
+// React state across. Only successful exchanges are returned: a failed
+// attempt's "answer" may be empty or partial, and replaying it wouldn't
+// mean anything to the user.
+router.get(
+  "/history",
+  asyncHandler(async (req, res) => {
+    const logs = await AiChatLog.find({ user: req.userId, status: "ok" })
+      .sort({ createdAt: -1 })
+      .limit(HISTORY_EXCHANGE_LIMIT)
+      .select("message answer createdAt")
+      .lean();
+
+    // Mongo gives newest-first (so the limit keeps the *most recent*
+    // exchanges); flip to chronological order for display.
+    const messages = logs.reverse().flatMap((log) => [
+      { role: "user", content: log.message, createdAt: log.createdAt },
+      { role: "assistant", content: log.answer, createdAt: log.createdAt },
+    ]);
+
+    res.json({ messages });
+  })
+);
 
 router.post(
   "/chat",
