@@ -3,7 +3,7 @@ import { Alert, Button, Form, Spinner } from "react-bootstrap";
 import { LockKeyhole, RotateCcw, Send, Sparkles } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import LedgerAssistantAvatar from "./LedgerAssistantAvatar.jsx";
-import { chatWithLedgerAI } from "../../lib/api.js";
+import { chatWithLedgerAI, fetchLedgerAIHistory } from "../../lib/api.js";
 
 const STARTER_QUESTIONS = [
   "How did I do with my budget this month?",
@@ -38,11 +38,39 @@ export default function LedgerAI() {
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState("");
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const messagesEnd = useRef(null);
+
+  // Restore the conversation from the server once on mount. Local state
+  // alone doesn't survive a logout, a page reload, or leaving and coming
+  // back to the tab — the server-side chat log is the source of truth.
+  // A failed fetch just falls back to a fresh chat instead of blocking
+  // the page.
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        const { messages: past } = await fetchLedgerAIHistory();
+        if (active && past?.length) {
+          setMessages((current) => [current[0], ...past]);
+        }
+      } catch {
+        // History is a nice-to-have restore, not a hard requirement —
+        // silently continue with just the welcome message.
+      } finally {
+        if (active) setLoadingHistory(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, sending, streamingText]);
+  }, [messages, sending, streamingText, loadingHistory]);
 
   async function submit(question) {
     const message = question.trim();
@@ -141,6 +169,16 @@ export default function LedgerAI() {
             {messages.map((item, index) => (
               <Message item={item} key={`${item.role}-${index}-${item.content.slice(0, 24)}`} />
             ))}
+
+            {loadingHistory && (
+              <div className="d-flex gap-2">
+                <LedgerAssistantAvatar size="small" />
+                <div className="lg-ai-message assistant d-flex align-items-center gap-2">
+                  <Spinner animation="grow" size="sm" />
+                  <span className="small">Restoring your conversation…</span>
+                </div>
+              </div>
+            )}
 
             {sending && (
               <div className="d-flex gap-2">
