@@ -66,7 +66,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
   const [editForm, setEditForm] = useState({ invested: "", currentValue: "", units: "", xirr: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editingHistoryId, setEditingHistoryId] = useState(null);
-  const [historyEditForm, setHistoryEditForm] = useState({ invested: "", currentValue: "", date: "" });
+  const [historyEditForm, setHistoryEditForm] = useState({ invested: "", currentValue: "", date: "", type: "SIP" });
   const [savingHistoryEdit, setSavingHistoryEdit] = useState(false);
   const rows = investments;
 
@@ -177,6 +177,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
       invested: String(item.invested ?? item.amount ?? ""),
       currentValue: String(item.currentValue ?? item.current ?? item.amount ?? ""),
       date: item.date || item.started || "",
+      type: item.type || "SIP",
     });
   }
 
@@ -192,6 +193,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
       ...item,
       invested: Number(historyEditForm.invested),
       currentValue: Number(historyEditForm.currentValue),
+      type: historyEditForm.type,
       ...(historyEditForm.date ? { date: historyEditForm.date } : {}),
     };
     try {
@@ -323,9 +325,15 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                       return (
                         <tr key={itemId || item.fund + item.date + item.type}>
                           <td><div className="fw-semibold">{item.fund}</div><small className="text-secondary">{item.monthly ? `₹${fmtINR(item.monthly)}/month · ${item.source}` : item.source}</small></td>
-                          <td><span className="badge text-bg-light">{item.type}</span></td>
                           {isEditing ? (
                             <>
+                              <td>
+                                <Form.Select size="sm" value={historyEditForm.type} onChange={(e) => setHistoryEditForm({ ...historyEditForm, type: e.target.value })} style={{ minWidth: 110 }}>
+                                  <option>SIP</option>
+                                  <option>Additional</option>
+                                  <option>Status</option>
+                                </Form.Select>
+                              </td>
                               <td><Form.Control size="sm" type="date" value={historyEditForm.date} onChange={(e) => setHistoryEditForm({ ...historyEditForm, date: e.target.value })} style={{ minWidth: 140 }} /></td>
                               <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={historyEditForm.invested} onChange={(e) => setHistoryEditForm({ ...historyEditForm, invested: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
                               <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={historyEditForm.currentValue} onChange={(e) => setHistoryEditForm({ ...historyEditForm, currentValue: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
@@ -339,6 +347,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                             </>
                           ) : (
                             <>
+                              <td><span className="badge text-bg-light">{item.type}</span></td>
                               <td>{item.started || item.date}</td>
                               <td className="text-end font-mono">₹{fmtINR(item.invested || item.amount)}</td>
                               <td className="text-end font-mono">₹{fmtINR(item.currentValue || item.current || item.amount)}</td>
