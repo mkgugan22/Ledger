@@ -65,6 +65,9 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
   const [editingFund, setEditingFund] = useState(null);
   const [editForm, setEditForm] = useState({ invested: "", currentValue: "", units: "", xirr: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editingHistoryId, setEditingHistoryId] = useState(null);
+  const [historyEditForm, setHistoryEditForm] = useState({ invested: "", currentValue: "", date: "" });
+  const [savingHistoryEdit, setSavingHistoryEdit] = useState(false);
   const rows = investments;
 
   const fundStatus = useMemo(() => buildFundStatus(rows), [rows]);
@@ -165,6 +168,41 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
       setNotice(`Couldn't update ${f.fund}: ${err.message}`);
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  function startEditHistory(item) {
+    setEditingHistoryId(item.id || item._id);
+    setHistoryEditForm({
+      invested: String(item.invested ?? item.amount ?? ""),
+      currentValue: String(item.currentValue ?? item.current ?? item.amount ?? ""),
+      date: item.date || item.started || "",
+    });
+  }
+
+  function cancelEditHistory() {
+    setEditingHistoryId(null);
+  }
+
+  async function saveEditHistory(item) {
+    if (historyEditForm.invested === "" || historyEditForm.currentValue === "") return;
+    const id = item.id || item._id;
+    setSavingHistoryEdit(true);
+    const payload = {
+      ...item,
+      invested: Number(historyEditForm.invested),
+      currentValue: Number(historyEditForm.currentValue),
+      ...(historyEditForm.date ? { date: historyEditForm.date } : {}),
+    };
+    try {
+      const saved = await editInvestment(id, payload);
+      onInvestmentUpdated?.(saved);
+      setNotice(`${item.fund} entry updated.`);
+      setEditingHistoryId(null);
+    } catch (err) {
+      setNotice(`Couldn't update ${item.fund}: ${err.message}`);
+    } finally {
+      setSavingHistoryEdit(false);
     }
   }
 
@@ -276,18 +314,38 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
             <>
               <div className="table-responsive">
                 <Table className="lg-table mb-0">
-                  <thead><tr><th>Fund</th><th>Type</th><th>Started / date</th><th className="text-end">Invested</th><th className="text-end">Current estimate</th><th className="text-end">Gain</th></tr></thead>
+                  <thead><tr><th>Fund</th><th>Type</th><th>Started / date</th><th className="text-end">Invested</th><th className="text-end">Current estimate</th><th className="text-end">Gain</th><th className="text-end">Actions</th></tr></thead>
                   <tbody>
                     {pagedHistory.map((item) => {
+                      const itemId = item.id || item._id;
+                      const isEditing = editingHistoryId === itemId;
                       const itemGain = Number(item.currentValue || item.current || 0) - Number(item.invested || item.amount || 0);
                       return (
-                        <tr key={item.id || item._id || item.fund + item.date + item.type}>
+                        <tr key={itemId || item.fund + item.date + item.type}>
                           <td><div className="fw-semibold">{item.fund}</div><small className="text-secondary">{item.monthly ? `₹${fmtINR(item.monthly)}/month · ${item.source}` : item.source}</small></td>
                           <td><span className="badge text-bg-light">{item.type}</span></td>
-                          <td>{item.started || item.date}</td>
-                          <td className="text-end font-mono">₹{fmtINR(item.invested || item.amount)}</td>
-                          <td className="text-end font-mono">₹{fmtINR(item.currentValue || item.current || item.amount)}</td>
-                          <td className={`text-end font-mono ${itemGain >= 0 ? "text-success" : "text-danger"}`}>{itemGain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(itemGain))}</td>
+                          {isEditing ? (
+                            <>
+                              <td><Form.Control size="sm" type="date" value={historyEditForm.date} onChange={(e) => setHistoryEditForm({ ...historyEditForm, date: e.target.value })} style={{ minWidth: 140 }} /></td>
+                              <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={historyEditForm.invested} onChange={(e) => setHistoryEditForm({ ...historyEditForm, invested: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
+                              <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={historyEditForm.currentValue} onChange={(e) => setHistoryEditForm({ ...historyEditForm, currentValue: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
+                              <td className="text-end text-secondary small">auto</td>
+                              <td className="text-end">
+                                <div className="d-flex justify-content-end gap-1">
+                                  <Button size="sm" variant="success" disabled={savingHistoryEdit} onClick={() => saveEditHistory(item)} title="Save"><Check size={14} /></Button>
+                                  <Button size="sm" variant="outline-secondary" disabled={savingHistoryEdit} onClick={cancelEditHistory} title="Cancel"><X size={14} /></Button>
+                                </div>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td>{item.started || item.date}</td>
+                              <td className="text-end font-mono">₹{fmtINR(item.invested || item.amount)}</td>
+                              <td className="text-end font-mono">₹{fmtINR(item.currentValue || item.current || item.amount)}</td>
+                              <td className={`text-end font-mono ${itemGain >= 0 ? "text-success" : "text-danger"}`}>{itemGain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(itemGain))}</td>
+                              <td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => startEditHistory(item)} title="Edit"><Pencil size={14} /></Button></td>
+                            </>
+                          )}
                         </tr>
                       );
                     })}
