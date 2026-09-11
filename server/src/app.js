@@ -7,6 +7,7 @@ import transactionsRouter from "./routes/transactions.js";
 import valuationsRouter from "./routes/valuations.js";
 import authRouter from "./routes/auth.js";
 import investmentsRouter from "./routes/investments.js";
+import bondsRouter from "./routes/bonds.js";
 import marketRouter from "./routes/market.js";
 import budgetsRouter from "./routes/budgets.js";
 import receiptsRouter from "./routes/receipts.js";
@@ -70,6 +71,7 @@ export function createApp() {
   app.use("/api/documents", documentsRouter);
   app.use("/api/valuations", valuationsRouter);
   app.use("/api/investments", investmentsRouter);
+  app.use("/api/bonds", bondsRouter);
   app.use("/api/budgets", budgetsRouter);
 
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
