@@ -38,6 +38,22 @@ function Protected({ children, user }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+// Bonds are independent saved records. Retry transient failures once, but do
+// not silently turn an API failure into an empty portfolio: an empty array is
+// valid data, while a failed request must remain visible to the user.
+async function fetchBondsWithRetry() {
+  try {
+    return await fetchBonds();
+  } catch (firstError) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      return await fetchBonds();
+    } catch (secondError) {
+      throw new Error(`Bond data could not be loaded (${secondError.message || firstError.message}).`);
+    }
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -62,12 +78,14 @@ export default function App() {
           fetchTransactions(),
           fetchValuations(),
           fetchInvestments().catch(() => []),
-          fetchBonds().catch(() => []),
+          fetchBondsWithRetry(),
           fetchBudgets().catch(() => []),
         ]);
         setTransactions(tx); setValuations(val); setInvestments(inv); setBonds(bnd); setBudgets(bud);
-      } catch (err) { setApiError(`Couldn't reach the server (${err.message}). Reconnect the API to load your saved data.`); }
-      finally { setLoaded(true); }
+        setApiError("");
+      } catch (err) {
+        setApiError(`Couldn't load your saved data (${err.message}). Refresh the page after the API is available.`);
+      } finally { setLoaded(true); }
     })();
   }, [user]);
 
@@ -95,23 +113,14 @@ export default function App() {
   const addValuation = useCallback(async (entry) => { try { const doc = await upsertValuation(entry); setValuations((prev) => { const idx = prev.findIndex((v) => v.month === entry.month && v.instrument === entry.instrument); if (idx >= 0) { const copy = [...prev]; copy[idx] = doc; return copy; } return [...prev, doc]; }); } catch (err) { setApiError(`Couldn't record that valuation (${err.message}).`); } }, []);
   const deleteValuation = useCallback(async (id) => { try { await removeValuation(id); setValuations((prev) => prev.filter((v) => v.id !== id)); } catch (err) { setApiError(`Couldn't delete that valuation (${err.message}).`); } }, []);
 
-  // Recurring transactions: ask the server to materialize this month's
-  // entries from every template, then fold the newly created docs into
-  // local state so the UI updates without a full refetch.
   const generateRecurring = useCallback(async (month) => {
     const result = await generateRecurringTransactions(month);
-    if (result.created?.length) {
-      setTransactions((prev) => [...prev, ...result.created]);
-    }
+    if (result.created?.length) setTransactions((prev) => [...prev, ...result.created]);
     return result;
   }, []);
 
-  // CSV export triggers a browser download directly (see api.js) — nothing
-  // to store in state.
   const exportCSV = useCallback(() => exportTransactionsCSV(), []);
 
-  // CSV import can create many rows at once; refetch the full list afterward
-  // rather than trying to reconcile partial results into local state.
   const importCSV = useCallback(async (csvText) => {
     const result = await importTransactionsCSV(csvText);
     try {
@@ -136,14 +145,7 @@ export default function App() {
       setApiError(`Couldn't save that budget (${err.message}).`);
     }
   }, []);
-  const deleteBudget = useCallback(async (id) => {
-    try {
-      await removeBudget(id);
-      setBudgets((prev) => prev.filter((b) => b.id !== id));
-    } catch (err) {
-      setApiError(`Couldn't delete that budget (${err.message}).`);
-    }
-  }, []);
+  const deleteBudget = useCallback(async (id) => { try { await removeBudget(id); setBudgets((prev) => prev.filter((b) => b.id !== id)); } catch (err) { setApiError(`Couldn't delete that budget (${err.message}).`); } }, []);
 
   const shared = {
     selectedMonth, setSelectedMonth, defaultMonth: selectedMonth, allMonths, totals, monthTx,
@@ -170,7 +172,7 @@ export default function App() {
         <Route path="savings" element={<SavingsTracker {...shared} />} />
         <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={addInvestmentItem} onInvestmentUpdated={updateInvestmentItem} />} />
         <Route path="bonds" element={<Bonds bonds={bonds} investments={investments} onBondAdded={addBondItem} onBondUpdated={updateBondItem} />} />
-         <Route path="ledger-ai" element={<LedgerAI />} />
+        <Route path="ledger-ai" element={<LedgerAI />} />
       </Route>
     </Routes>
   </BrowserRouter>;
