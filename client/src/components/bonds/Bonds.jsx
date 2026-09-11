@@ -29,25 +29,56 @@ function daysBetween(a, b) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
+function toFiniteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function buildBondStatus(rows) {
   const byIssuer = new Map();
   for (const item of rows) {
-    const key = item.issuer;
-    if (!byIssuer.has(key)) byIssuer.set(key, { issuer: key, statusEntry: null, purchaseEntry: null, faceValue: 0, current: 0, bondType: item.bondType || "Government" });
-    const bucket = byIssuer.get(key);
+    const issuer = String(item.issuer || "").trim();
+    if (!issuer) continue;
+
+    if (!byIssuer.has(issuer)) {
+      byIssuer.set(issuer, {
+        issuer,
+        latestStatus: null,
+        firstPurchase: null,
+        principal: 0,
+        purchaseCurrent: 0,
+        bondType: item.bondType || "Government",
+      });
+    }
+
+    const bucket = byIssuer.get(issuer);
     if (item.type === "Status") {
-      if (!bucket.statusEntry || item.date >= bucket.statusEntry.date) bucket.statusEntry = item;
-    } else {
-      if (!bucket.purchaseEntry || item.date <= bucket.purchaseEntry.date) bucket.purchaseEntry = item;
-      bucket.faceValue += Number(item.faceValue || 0);
-      bucket.current += Number(item.currentValue || item.faceValue || 0);
+      if (!bucket.latestStatus || String(item.date || "") > String(bucket.latestStatus.date || "")) {
+        bucket.latestStatus = item;
+      }
+      continue;
+    }
+
+    // Every Purchase row represents principal added to the holding. Aggregate
+    // all purchases instead of using only the first purchase's face value.
+    bucket.principal += toFiniteNumber(item.faceValue);
+    bucket.purchaseCurrent += toFiniteNumber(item.currentValue, toFiniteNumber(item.faceValue));
+
+    if (!bucket.firstPurchase || String(item.date || "") < String(bucket.firstPurchase.date || "")) {
+      bucket.firstPurchase = item;
     }
   }
+
   return Array.from(byIssuer.values()).map((bucket) => {
-    const s = bucket.statusEntry;
-    const p = bucket.purchaseEntry;
-    const faceValue = p ? Number(p.faceValue) : bucket.faceValue;
-    const current = s ? Number(s.currentValue) : bucket.current;
+    const s = bucket.latestStatus;
+    const p = bucket.firstPurchase;
+
+    // Status records are snapshots for the whole issuer and therefore override
+    // the fallback purchase valuation, but never change principal invested.
+    const faceValue = bucket.principal;
+    const current = s
+      ? toFiniteNumber(s.currentValue)
+      : bucket.purchaseCurrent;
     const gain = current - faceValue;
     const absReturn = faceValue ? (gain / faceValue) * 100 : 0;
     const purchaseDate = p?.purchaseDate || p?.date || null;
@@ -484,38 +515,23 @@ export default function Bonds({ bonds = [], investments = [], onBondAdded, onBon
               </div>
               <Button size="sm" variant="outline-secondary" disabled={refreshingAll} onClick={refreshAllFundMarketData} className="d-inline-flex align-items-center gap-2"><RefreshCw size={14} />Refresh all</Button>
             </div>
-            <div className="table-responsive">
-              <Table className="lg-table mb-0">
-                <thead><tr><th>Fund</th><th className="text-end">Units on record</th><th className="text-end">Latest NAV</th><th className="text-end">Market value</th><th className="text-end">vs. last saved</th><th className="text-end">Actions</th></tr></thead>
-                <tbody>
-                  {fundWatchlist.map((f) => {
-                    const md = marketData[f.fund];
-                    const diff = md?.marketValue != null && f.recordedValue != null ? md.marketValue - f.recordedValue : null;
-                    return (
-                      <tr key={f.fund}>
-                        <td><div className="fw-semibold">{f.fund}</div>{md?.schemeName ? <small className="text-secondary">Matched: {md.schemeName}</small> : f.asOf && <small className="text-secondary">last saved {f.asOf}</small>}{md?.error && <small className="text-danger d-block">{md.error}</small>}</td>
-                        <td className="text-end font-mono">{f.units != null ? f.units.toFixed(4) : "—"}</td>
-                        <td className="text-end font-mono">{md?.nav != null ? `₹${md.nav.toFixed(2)}${md.navDate ? ` (${md.navDate})` : ""}` : md?.loading ? "Fetching…" : "—"}</td>
-                        <td className="text-end font-mono">{md?.marketValue != null ? `₹${fmtINR(md.marketValue)}` : "—"}</td>
-                        <td className={`text-end font-mono ${diff == null ? "" : diff >= 0 ? "text-success" : "text-danger"}`}>{diff != null ? `${diff >= 0 ? "+" : "-"}₹${fmtINR(Math.abs(diff))}` : "—"}</td>
-                        <td className="text-end"><Button size="sm" variant="outline-secondary" disabled={md?.loading} onClick={() => refreshFundMarketData(f)} title="Fetch latest NAV"><RefreshCw size={14} /></Button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </div>
-            <small className="text-secondary d-block mt-3">"vs. last saved" compares live market value to the current value last recorded on SIP Growth — informational only and not stored.</small>
+            <div className="small text-secondary mb-3">Market values use the latest available NAV multiplied by the latest saved units. Funds without saved units fall back to their recorded status value.</div>
+            <div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Fund</th><th className="text-end">Units</th><th className="text-end">Invested</th><th className="text-end">Latest NAV</th><th className="text-end">Market value</th><th className="text-end">Refresh</th></tr></thead><tbody>
+              {chartData.funds.map((f) => {
+                const md = marketData[f.fullName];
+                return <tr key={f.fullName}><td><div className="fw-semibold">{f.fullName}</div>{md?.navDate && <small className="text-secondary">NAV: {md.navDate}</small>}{md?.error && <div className="text-danger small">{md.error}</div>}</td><td className="text-end font-mono">{f.name && fundWatchlist.find((x) => x.fund === f.fullName)?.units != null ? fundWatchlist.find((x) => x.fund === f.fullName).units : "—"}</td><td className="text-end font-mono">₹{fmtINR(f.invested)}</td><td className="text-end font-mono">{f.latestNav != null ? `₹${fmtINR(f.latestNav)}` : "—"}</td><td className="text-end font-mono">{f.marketValue != null ? `₹${fmtINR(f.marketValue)}` : "—"}</td><td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => refreshFundMarketData(f)} disabled={md?.loading} title="Refresh market value"><RefreshCw size={14} /></Button></td></tr>;
+              })}
+            </tbody></Table></div>
           </Card.Body>
         </Card>
       )}
 
       <Card className="lg-card mb-4">
         <Card.Body>
-          <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
             <div>
-              <div className="font-serif d-flex align-items-center gap-2"><TrendingUp size={17} />Portfolio comparison</div>
-              <small className="text-secondary">Compare SIP Growth and Bonds with the saved/current values available in your Ledger data.</small>
+              <div className="font-serif">Portfolio comparison</div>
+              <small className="text-secondary">Bonds use principal and latest current value from the bond records above. SIP values remain read-only.</small>
             </div>
             <Form.Select size="sm" value={chartType} onChange={(e) => setChartType(e.target.value)} style={{ maxWidth: 180 }} aria-label="Chart type">
               {CHART_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
