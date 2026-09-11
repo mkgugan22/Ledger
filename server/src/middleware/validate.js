@@ -85,6 +85,22 @@ export const investmentSchema = z.object({
 // PUT allows partial updates.
 export const investmentUpdateSchema = investmentSchema.partial();
 
+export const bondSchema = z.object({
+  issuer: z.string().trim().min(1, "Issuer is required."),
+  bondType: z.enum(["Government", "Corporate", "Municipal", "PSU", "Other"]).optional().default("Government"),
+  type: z.enum(["Purchase", "Status"]).optional().default("Purchase"),
+  faceValue: z.number().min(0, "Face value must be zero or greater."),
+  currentValue: z.number().min(0, "Current value must be zero or greater."),
+  couponRate: z.number().min(0).optional(),
+  purchaseDate: z.string().trim().optional(),
+  maturityDate: z.string().trim().optional(),
+  date: z.string().trim().min(1, "Date is required."),
+  source: z.string().trim().optional().default("Manual entry"),
+});
+
+// PUT allows partial updates.
+export const bondUpdateSchema = bondSchema.partial();
+
 // Body for POST /api/transactions/generate-recurring
 export const generateRecurringSchema = z.object({
   month: monthSchema,
@@ -147,6 +163,11 @@ export const transactionListQuerySchema = z.object({
 }).strict().refine((value) => !(value.month && (value.from || value.to)), { message: "Use month or from/to, not both." }).refine((value) => !value.from || !value.to || value.from <= value.to, { message: "from must not be after to." });
 
 export const investmentListQuerySchema = z.object({
+  page: pageSchema.optional(),
+  limit: limitSchema.optional(),
+}).strict();
+
+export const bondListQuerySchema = z.object({
   page: pageSchema.optional(),
   limit: limitSchema.optional(),
 }).strict();
