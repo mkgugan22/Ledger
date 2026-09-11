@@ -169,7 +169,7 @@ export default function App() {
         <Route path="budget" element={<Budget {...shared} />} />
         <Route path="savings" element={<SavingsTracker {...shared} />} />
         <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={addInvestmentItem} onInvestmentUpdated={updateInvestmentItem} />} />
-        <Route path="bonds" element={<Bonds bonds={bonds} onBondAdded={addBondItem} onBondUpdated={updateBondItem} />} />
+        <Route path="bonds" element={<Bonds bonds={bonds} investments={investments} onBondAdded={addBondItem} onBondUpdated={updateBondItem} />} />
          <Route path="ledger-ai" element={<LedgerAI />} />
       </Route>
     </Routes>
