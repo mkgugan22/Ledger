@@ -3,10 +3,25 @@ import { Router } from "express";
 const router = Router();
 const MFAPI = "https://api.mfapi.in/mf";
 
-async function upstream(path) {
-  const response = await fetch(`${MFAPI}${path}`, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Market data provider returned ${response.status}`);
-  return response.json();
+// The full scheme list is a large one-time download (~20k+ entries, several
+// MB); on a slower/cold-starting host that routinely takes longer than a
+// typical API timeout. Per-scheme NAV history is a much smaller payload, so
+// it keeps a tighter budget. `retries` gives the big list one extra attempt
+// before giving up — cheap insurance against a single slow/flaky fetch
+// (e.g. right after a Render free-tier cold start) failing every fund's
+// refresh at once, which is what was happening with a flat 8s/no-retry setup.
+async function upstream(path, { timeoutMs = 8000, retries = 0 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`${MFAPI}${path}`, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`Market data provider returned ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 // The full scheme list (~20k+ entries) rarely changes and mfapi.in has no
@@ -23,7 +38,7 @@ async function getSchemeList() {
   if (isFresh) return schemeListCache.data;
   // Coalesce concurrent cache-miss requests into a single upstream call.
   if (!inFlightFetch) {
-    inFlightFetch = upstream("/search")
+    inFlightFetch = upstream("/search", { timeoutMs: 25000, retries: 1 })
       .then((data) => {
         schemeListCache = { data, fetchedAt: Date.now() };
         return data;
@@ -75,14 +90,20 @@ router.get("/search", async (req, res) => {
     const all = await getSchemeList();
     const needle = q.toLowerCase();
     res.json(all.filter((item) => item.schemeName?.toLowerCase().includes(needle)).slice(0, 20));
-  } catch (err) { res.status(502).json({ error: "Market data is temporarily unavailable." }); }
+  } catch (err) {
+    console.error("[market/search]", err);
+    res.status(502).json({ error: "Market data is temporarily unavailable. This is usually a slow first request after the server was idle — please try again in a few seconds." });
+  }
 });
 
 router.get("/:schemeCode", async (req, res) => {
   try {
     const data = await getScheme(req.params.schemeCode);
     res.json({ schemeCode: req.params.schemeCode, meta: data.meta, data: data.data?.slice(0, 365) || [] });
-  } catch (err) { res.status(502).json({ error: "Market data is temporarily unavailable." }); }
+  } catch (err) {
+    console.error("[market/:schemeCode]", req.params.schemeCode, err);
+    res.status(502).json({ error: "Market data is temporarily unavailable. Please try again in a moment." });
+  }
 });
 
 export default router;
