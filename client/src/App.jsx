@@ -9,9 +9,11 @@ import Budget from "./components/budget/Budget.jsx";
 import SavingsTracker from "./components/savings/SavingsTracker.jsx";
 import Login from "./components/auth/Login.jsx";
 import SipGrowth from "./components/investments/SipGrowth.jsx";
+import Bonds from "./components/bonds/Bonds.jsx";
 import {
   createTransaction,
   editTransaction,
+  fetchBonds,
   fetchInvestments,
   fetchSession,
   fetchTransactions,
@@ -44,6 +46,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [valuations, setValuations] = useState([]);
   const [investments, setInvestments] = useState([]);
+  const [bonds, setBonds] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [theme, setTheme] = useState(() => localStorage.getItem("ledger-theme") || "light");
@@ -55,13 +58,14 @@ export default function App() {
     if (!user) return;
     (async () => {
       try {
-        const [tx, val, inv, bud] = await Promise.all([
+        const [tx, val, inv, bnd, bud] = await Promise.all([
           fetchTransactions(),
           fetchValuations(),
           fetchInvestments().catch(() => []),
+          fetchBonds().catch(() => []),
           fetchBudgets().catch(() => []),
         ]);
-        setTransactions(tx); setValuations(val); setInvestments(inv); setBudgets(bud);
+        setTransactions(tx); setValuations(val); setInvestments(inv); setBonds(bnd); setBudgets(bud);
       } catch (err) { setApiError(`Couldn't reach the server (${err.message}). Reconnect the API to load your saved data.`); }
       finally { setLoaded(true); }
     })();
@@ -151,6 +155,8 @@ export default function App() {
 
   const addInvestmentItem = useCallback((item) => setInvestments((prev) => [...prev, item]), []);
   const updateInvestmentItem = useCallback((item) => setInvestments((prev) => prev.map((it) => ((it.id || it._id) === (item.id || item._id) ? item : it))), []);
+  const addBondItem = useCallback((item) => setBonds((prev) => [...prev, item]), []);
+  const updateBondItem = useCallback((item) => setBonds((prev) => prev.map((it) => ((it.id || it._id) === (item.id || item._id) ? item : it))), []);
 
   if (!authChecked) return <div className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}><span className="font-serif text-secondary">Opening the ledger…</span></div>;
   return <BrowserRouter>
@@ -163,6 +169,7 @@ export default function App() {
         <Route path="budget" element={<Budget {...shared} />} />
         <Route path="savings" element={<SavingsTracker {...shared} />} />
         <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={addInvestmentItem} onInvestmentUpdated={updateInvestmentItem} />} />
+        <Route path="bonds" element={<Bonds bonds={bonds} onBondAdded={addBondItem} onBondUpdated={updateBondItem} />} />
          <Route path="ledger-ai" element={<LedgerAI />} />
       </Route>
     </Routes>
