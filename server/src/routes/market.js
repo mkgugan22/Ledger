@@ -3,13 +3,6 @@ import { Router } from "express";
 const router = Router();
 const MFAPI = "https://api.mfapi.in/mf";
 
-// The full scheme list is a large one-time download (~20k+ entries, several
-// MB); on a slower/cold-starting host that routinely takes longer than a
-// typical API timeout. Per-scheme NAV history is a much smaller payload, so
-// it keeps a tighter budget. `retries` gives the big list one extra attempt
-// before giving up — cheap insurance against a single slow/flaky fetch
-// (e.g. right after a Render free-tier cold start) failing every fund's
-// refresh at once, which is what was happening with a flat 8s/no-retry setup.
 async function upstream(path, { timeoutMs = 8000, retries = 0 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -24,28 +17,41 @@ async function upstream(path, { timeoutMs = 8000, retries = 0 } = {}) {
   throw lastErr;
 }
 
-// The full scheme list (~20k+ entries) rarely changes and mfapi.in has no
-// per-scheme search endpoint, so every /search request used to re-download
-// and re-filter the entire list. Cache it in-memory with a TTL instead —
-// simple module-level state is enough at this app's scale (single process,
-// no need for Redis/shared cache).
-const SCHEME_LIST_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
-let schemeListCache = { data: null, fetchedAt: 0 };
-let inFlightFetch = null;
+// mfapi.in's /mf/search endpoint does its own name-matching server-side and
+// *requires* a `q` parameter — calling it with none (which this file used to
+// do, on the assumption there was no search endpoint and the full ~20k-entry
+// list had to be downloaded and filtered locally) returns HTTP 400 every
+// time. That 400, not a timeout or an mfapi.in outage, was the real cause of
+// every fund lookup failing. Proxying the person's search text straight
+// through fixes it and is simpler: no multi-MB list to download, cache, or
+// time out on.
+const SEARCH_TTL_MS = 60 * 60 * 1000; // 1 hour — matches change rarely
+const SEARCH_CACHE_MAX_ENTRIES = 200;
+const searchCache = new Map(); // query -> { data, fetchedAt }
+const searchInFlight = new Map(); // query -> Promise
 
-async function getSchemeList() {
-  const isFresh = schemeListCache.data && Date.now() - schemeListCache.fetchedAt < SCHEME_LIST_TTL_MS;
-  if (isFresh) return schemeListCache.data;
-  // Coalesce concurrent cache-miss requests into a single upstream call.
-  if (!inFlightFetch) {
-    inFlightFetch = upstream("/search", { timeoutMs: 25000, retries: 1 })
-      .then((data) => {
-        schemeListCache = { data, fetchedAt: Date.now() };
-        return data;
-      })
-      .finally(() => { inFlightFetch = null; });
-  }
-  return inFlightFetch;
+async function searchSchemes(q) {
+  const key = q.toLowerCase();
+  const cached = searchCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < SEARCH_TTL_MS) return cached.data;
+
+  // Coalesce concurrent identical-query requests into a single upstream call.
+  const pending = searchInFlight.get(key);
+  if (pending) return pending;
+
+  const fetchPromise = upstream(`/search?q=${encodeURIComponent(q)}`, { timeoutMs: 10000, retries: 1 })
+    .then((data) => {
+      if (searchCache.size >= SEARCH_CACHE_MAX_ENTRIES && !searchCache.has(key)) {
+        const oldestKey = searchCache.keys().next().value;
+        searchCache.delete(oldestKey);
+      }
+      searchCache.set(key, { data, fetchedAt: Date.now() });
+      return data;
+    })
+    .finally(() => { searchInFlight.delete(key); });
+
+  searchInFlight.set(key, fetchPromise);
+  return fetchPromise;
 }
 
 // Per-fund NAV history changes at most once a day, but every page view of
@@ -54,7 +60,7 @@ async function getSchemeList() {
 // of avoidable outbound calls under load — and the one most likely to get
 // this server rate-limited or slowed down by the upstream provider. Cache
 // each scheme's response for a few hours and coalesce concurrent misses,
-// the same pattern as the scheme list above. A bounded Map keeps memory
+// the same pattern as the search cache above. A bounded Map keeps memory
 // predictable even if thousands of distinct schemes get looked up.
 const SCHEME_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const SCHEME_CACHE_MAX_ENTRIES = 500;
@@ -87,12 +93,11 @@ router.get("/search", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     if (q.length < 2) return res.status(400).json({ error: "Enter at least two characters." });
-    const all = await getSchemeList();
-    const needle = q.toLowerCase();
-    res.json(all.filter((item) => item.schemeName?.toLowerCase().includes(needle)).slice(0, 20));
+    const results = await searchSchemes(q);
+    res.json(Array.isArray(results) ? results.slice(0, 20) : []);
   } catch (err) {
     console.error("[market/search]", err);
-    res.status(502).json({ error: "Market data is temporarily unavailable. This is usually a slow first request after the server was idle — please try again in a few seconds." });
+    res.status(502).json({ error: "Market data is temporarily unavailable. Please try again in a moment." });
   }
 });
 
