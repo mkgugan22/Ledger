@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
-import { ArrowDownRight, ArrowUpRight, Calendar, Check, ChevronLeft, ChevronRight, Landmark, Pencil, Plus, Search, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Calendar, Check, ChevronLeft, ChevronRight, Landmark, Pencil, Plus, RefreshCw, Search, X } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
-import { createBond, editBond } from "../../lib/api.js";
+import { createBond, editBond, fetchMarketFund, searchMarketFunds } from "../../lib/api.js";
 import { fmtINR } from "../../lib/format.js";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -70,6 +70,35 @@ function buildBondStatus(rows) {
 
 const HISTORY_PAGE_SIZE = 8;
 
+// Read-only helper for the "market watch" panel below. Groups the SIP
+// Growth investments (passed in as a prop, never written to here) by fund
+// name so we know each fund's latest recorded units/value to compare a
+// freshly-fetched NAV against. This never touches the Bonds collection —
+// it's purely a display aid for funds that don't belong on this page's
+// issuer/coupon/maturity model but that the person still wants visible here.
+function buildFundWatchlist(investments) {
+  const byFund = new Map();
+  for (const item of investments) {
+    const key = item.fund;
+    if (!key) continue;
+    if (!byFund.has(key)) byFund.set(key, { fund: key, statusEntry: null, invested: 0 });
+    const bucket = byFund.get(key);
+    if (item.type === "Status") {
+      if (!bucket.statusEntry || item.date >= bucket.statusEntry.date) bucket.statusEntry = item;
+    } else {
+      bucket.invested += Number(item.invested || item.amount || 0);
+    }
+  }
+  return Array.from(byFund.values()).map((b) => ({
+    fund: b.fund,
+    units: b.statusEntry?.units ?? null,
+    invested: b.statusEntry ? Number(b.statusEntry.invested) : b.invested,
+    recordedValue: b.statusEntry ? Number(b.statusEntry.currentValue) : null,
+    asOf: b.statusEntry?.date ?? null,
+  }));
+}
+
+
 const FREE_BOND_SOURCES = [
   { label: "RBI Retail Direct", href: "https://rbiretaildirect.org.in/" },
   { label: "NSE — Bonds & Debt segment", href: "https://www.nseindia.com/invest/bonds-debt" },
@@ -79,7 +108,7 @@ const FREE_BOND_SOURCES = [
   { label: "ClearTax — Bonds", href: "https://cleartax.in/s/bonds" },
 ];
 
-export default function Bonds({ bonds = [], onBondAdded, onBondUpdated }) {
+export default function Bonds({ bonds = [], investments = [], onBondAdded, onBondUpdated }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ issuer: "", bondType: "Government", type: "Purchase", faceValue: "", currentValue: "", couponRate: "", purchaseDate: "", maturityDate: "", date: "" });
   const [notice, setNotice] = useState("");
@@ -88,7 +117,11 @@ export default function Bonds({ bonds = [], onBondAdded, onBondUpdated }) {
   const [editingBond, setEditingBond] = useState(null);
   const [editForm, setEditForm] = useState({ currentValue: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [marketData, setMarketData] = useState({}); // { [fundName]: { loading, error, nav, navDate, schemeName, marketValue } }
+  const [refreshingAll, setRefreshingAll] = useState(false);
   const rows = bonds;
+
+  const fundWatchlist = useMemo(() => buildFundWatchlist(investments), [investments]);
 
   const bondStatus = useMemo(() => buildBondStatus(rows), [rows]);
 
@@ -183,6 +216,41 @@ export default function Bonds({ bonds = [], onBondAdded, onBondUpdated }) {
     }
   }
 
+  // Pulls a fund's latest NAV from mfapi.in (free, no signup, AMFI-sourced —
+  // the same source already used for the refresh button on SIP Growth) and
+  // computes units × NAV. Purely local state — nothing here is saved to the
+  // server, so it can never affect bond records or the SIP Growth data it
+  // reads from.
+  async function refreshFundMarketData(f) {
+    setMarketData((prev) => ({ ...prev, [f.fund]: { ...prev[f.fund], loading: true, error: null } }));
+    try {
+      const matches = await searchMarketFunds(f.fund);
+      if (!Array.isArray(matches) || matches.length === 0) throw new Error("No match found on mfapi.in");
+      const needle = f.fund.toLowerCase();
+      const best =
+        matches.find((m) => m.schemeName?.toLowerCase() === needle) ||
+        matches.find((m) => m.schemeName?.toLowerCase().includes(needle)) ||
+        matches[0];
+      const scheme = await fetchMarketFund(best.schemeCode);
+      const latest = scheme?.data?.[0];
+      if (!latest?.nav) throw new Error("NAV unavailable right now");
+      const nav = Number(latest.nav);
+      const marketValue = f.units != null ? Number((f.units * nav).toFixed(2)) : null;
+      setMarketData((prev) => ({ ...prev, [f.fund]: { loading: false, error: null, nav, navDate: latest.date, schemeName: best.schemeName, marketValue } }));
+    } catch (err) {
+      setMarketData((prev) => ({ ...prev, [f.fund]: { loading: false, error: err.message, nav: prev[f.fund]?.nav ?? null, navDate: prev[f.fund]?.navDate, schemeName: prev[f.fund]?.schemeName, marketValue: prev[f.fund]?.marketValue ?? null } }));
+    }
+  }
+
+  async function refreshAllFundMarketData() {
+    setRefreshingAll(true);
+    try {
+      await Promise.all(fundWatchlist.map((f) => refreshFundMarketData(f)));
+    } finally {
+      setRefreshingAll(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Bonds" subtitle="Track what each bond is worth today, and its progress toward maturity" right={<Button onClick={() => setShowForm((v) => !v)} className="d-inline-flex align-items-center gap-2"><Plus size={16} />Add bond</Button>} />
@@ -222,6 +290,55 @@ export default function Bonds({ bonds = [], onBondAdded, onBondUpdated }) {
         <Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Overall gain</div><div className={`lg-summary-value font-mono ${gain >= 0 ? "text-success" : "text-danger"}`}>{gain >= 0 ? "+" : "-"}₹{fmtINR(Math.abs(gain))}</div><small className={gain >= 0 ? "text-success" : "text-danger"}>{gain >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {Math.abs(gainPct).toFixed(2)}%</small></Card.Body></Card></Col>
         <Col sm={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="lg-summary-label">Maturing within a year</div><div className="lg-summary-value font-mono">{maturingSoon}</div><small className="text-secondary">Bond{maturingSoon === 1 ? "" : "s"} to plan around</small></Card.Body></Card></Col>
       </Row>
+
+      {fundWatchlist.length > 0 && (
+        <Card className="lg-card mb-4">
+          <Card.Body>
+            <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+              <div>
+                <div className="font-serif">Mutual fund market watch</div>
+                <small className="text-secondary">
+                  Funds tracked on your SIP Growth page, shown here for convenience. Live NAV is pulled from{" "}
+                  <a href="https://www.mfapi.in/" target="_blank" rel="noreferrer">mfapi.in</a> (free, no signup, sourced from AMFI) — read-only, doesn't create or change any bond record.
+                </small>
+              </div>
+              <Button size="sm" variant="outline-secondary" disabled={refreshingAll} onClick={refreshAllFundMarketData} className="d-inline-flex align-items-center gap-2">
+                <RefreshCw size={14} />Refresh all
+              </Button>
+            </div>
+            <div className="table-responsive">
+              <Table className="lg-table mb-0">
+                <thead><tr><th>Fund</th><th className="text-end">Units on record</th><th className="text-end">Latest NAV</th><th className="text-end">Market value</th><th className="text-end">vs. last saved</th><th className="text-end">Actions</th></tr></thead>
+                <tbody>
+                  {fundWatchlist.map((f) => {
+                    const md = marketData[f.fund];
+                    const diff = md?.marketValue != null && f.recordedValue != null ? md.marketValue - f.recordedValue : null;
+                    return (
+                      <tr key={f.fund}>
+                        <td>
+                          <div className="fw-semibold">{f.fund}</div>
+                          {md?.schemeName ? <small className="text-secondary">{md.schemeName}</small> : f.asOf && <small className="text-secondary">last saved {f.asOf}</small>}
+                          {md?.error && <small className="text-danger d-block">{md.error}</small>}
+                        </td>
+                        <td className="text-end font-mono">{f.units != null ? f.units.toFixed(4) : "—"}</td>
+                        <td className="text-end font-mono">{md?.nav != null ? `₹${md.nav.toFixed(2)}${md.navDate ? ` (${md.navDate})` : ""}` : md?.loading ? "Fetching…" : "—"}</td>
+                        <td className="text-end font-mono">{md?.marketValue != null ? `₹${fmtINR(md.marketValue)}` : "—"}</td>
+                        <td className={`text-end font-mono ${diff == null ? "" : diff >= 0 ? "text-success" : "text-danger"}`}>{diff != null ? `${diff >= 0 ? "+" : "-"}₹${fmtINR(Math.abs(diff))}` : "—"}</td>
+                        <td className="text-end">
+                          <Button size="sm" variant="outline-secondary" disabled={md?.loading} onClick={() => refreshFundMarketData(f)} title="Fetch latest NAV">
+                            <RefreshCw size={14} />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+            <small className="text-secondary d-block mt-3">"vs. last saved" compares live market value to the current value last recorded on SIP Growth — it's informational only and isn't stored anywhere.</small>
+          </Card.Body>
+        </Card>
+      )}
 
       <Card className="lg-card mb-4">
         <Card.Body>
