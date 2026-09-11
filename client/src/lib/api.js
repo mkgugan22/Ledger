@@ -136,7 +136,10 @@ export const editInvestment = async (id, data) => withId(await request(`/investm
 export const removeInvestment = (id) => request(`/investments/${id}`, { method: "DELETE" });
 export const searchMarketFunds = (query) => request(`/market/search?q=${encodeURIComponent(query)}`);
 export const fetchMarketFund = (schemeCode) => request(`/market/${encodeURIComponent(schemeCode)}`);
-
+export const fetchBonds = async () => collection(await request("/bonds")).map(withId);
+export const createBond = async (data) => withId(await request("/bonds", { method: "POST", body: JSON.stringify(data) }));
+export const editBond = async (id, data) => withId(await request(`/bonds/${id}`, { method: "PUT", body: JSON.stringify(data) }));
+export const removeBond = (id) => request(`/bonds/${id}`, { method: "DELETE" });
 export const fetchBudgets = async (month) => collection(await request(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets")).map(withId);
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
