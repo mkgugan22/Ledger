@@ -179,6 +179,8 @@ export default function SavingsTracker({
                         <button
                           className="btn btn-sm btn-link text-secondary p-1"
                           onClick={() => deleteValuation(v.id)}
+                          aria-label={`Delete ${v.instrument} valuation for ${monthLabel(v.month)}`}
+                          title="Delete"
                         >
                           <Trash2 size={14} />
                         </button>
