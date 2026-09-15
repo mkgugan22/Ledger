@@ -67,7 +67,7 @@ export default function Sidebar({ user, theme, onThemeToggle, onLogout }) {
       <div className="mt-auto d-flex flex-column gap-2">
         <div className="d-flex align-items-center justify-content-between px-2 small text-white-50">
           <span>{user?.name || user?.email}</span>
-          <button className="btn btn-sm btn-link text-white-50 p-1" onClick={onLogout} title="Sign out"><LogOut size={14} /></button>
+          <button className="btn btn-sm btn-link text-white-50 p-1" onClick={onLogout} aria-label="Sign out" title="Sign out"><LogOut size={14} /></button>
         </div>
         <button className="lg-theme-toggle" onClick={onThemeToggle}>{theme === "light" ? <Moon size={14} /> : <Sun size={14} />} {theme === "light" ? "Dark mode" : "Light mode"}</button>
         <div className="lg-fold-line" />
