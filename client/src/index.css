@@ -20,6 +20,18 @@
   --lg-savings: #3f6c82;
   --lg-spending: #a8432e;
 
+  /* Link color is a shade darker than --lg-brass-deep: the deep brass
+     alone sits at 4.27:1 on the cream page, just under AA (4.5:1) for
+     body text. This holds the same hue at ~5.1:1. */
+  --lg-link: #7f631b;
+  --lg-focus-ring: var(--lg-brass);
+
+  /* Elevation scale — used on resting + hovered cards so surfaces read
+     as raised even before interaction, not just on hover. */
+  --lg-shadow-sm: 0 1px 2px rgba(18, 36, 32, 0.06);
+  --lg-shadow-md: 0 8px 20px rgba(18, 36, 32, 0.08);
+  --lg-shadow-lg: 0 16px 36px rgba(18, 36, 32, 0.16);
+
   --bs-body-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --bs-body-bg: var(--lg-page);
   --bs-body-color: var(--lg-text);
@@ -27,7 +39,7 @@
   --bs-border-radius-lg: 0.75rem;
   --bs-primary: var(--lg-cover);
   --bs-primary-rgb: 18, 36, 32;
-  --bs-link-color: var(--lg-brass-deep);
+  --bs-link-color: var(--lg-link);
   --bs-link-hover-color: var(--lg-brass);
   --lg-surface: #fff;
   --lg-surface-soft: #fbfaf5;
@@ -45,12 +57,17 @@
   --lg-needs: #e7bd86;
   --lg-savings: #82c4e4;
   --lg-spending: #f0927b;
+  --lg-link: #d1b15a;
+  --lg-focus-ring: #f0d47a;
+  --lg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --lg-shadow-md: 0 8px 20px rgba(0, 0, 0, 0.32);
+  --lg-shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.4);
   --bs-body-bg: var(--lg-page);
   --bs-body-color: var(--lg-text);
   --bs-primary: #6f9b8b;
   --bs-primary-rgb: 111, 155, 139;
-  --bs-link-color: #d1b15a;
-  --bs-link-hover-color: #f0d47a;
+  --bs-link-color: var(--lg-link);
+  --bs-link-hover-color: var(--lg-focus-ring);
   --bs-body-color: var(--lg-text);
   --bs-emphasis-color: var(--lg-text);
   --bs-secondary-color: var(--lg-text-dim);
@@ -72,6 +89,20 @@
 body {
   background-color: var(--lg-page);
   color: var(--lg-text);
+}
+
+/* ---------- Keyboard focus ---------- */
+:focus-visible {
+  outline: 2px solid var(--lg-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* The sidebar/offcanvas nav is always the dark pine cover regardless of
+   light/dark theme, so its ring stays a fixed warm gold rather than the
+   theme's --lg-focus-ring, which flips for page contrast. */
+.lg-sidebar :focus-visible,
+.lg-offcanvas :focus-visible {
+  outline-color: #f0d47a;
 }
 
 /* ---------- Sidebar (desktop) ---------- */
@@ -150,17 +181,19 @@ body {
   border-radius: var(--bs-border-radius-lg);
   background: var(--lg-surface);
   color: var(--lg-text);
+  box-shadow: var(--lg-shadow-sm);
 }
 .lg-summary-card {
   border: 1px solid var(--lg-rule);
   border-radius: var(--bs-border-radius-lg);
   background: var(--lg-surface);
   color: var(--lg-text);
+  box-shadow: var(--lg-shadow-sm);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .lg-summary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(18, 36, 32, 0.08);
+  box-shadow: var(--lg-shadow-md);
 }
 .lg-summary-label {
   font-size: 0.72rem;
@@ -180,6 +213,17 @@ body {
 }
 
 /* ---------- Mode chips / badges ---------- */
+.lg-mode-chip,
+.lg-filter-chip {
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease, transform 0.15s ease;
+}
+.lg-mode-chip:hover,
+.lg-filter-chip:hover {
+  transform: translateY(-1px);
+}
+
 .lg-mode-chip {
   border: 1.5px solid var(--lg-rule);
   border-radius: 999px;
@@ -208,6 +252,18 @@ body {
   border-color: var(--lg-cover);
 }
 
+/* 44px is the touch-target floor; pill chips are the primary mode/filter
+   control on mobile, so give them real tap height there without
+   changing their desktop footprint. */
+@media (max-width: 575.98px) {
+  .lg-mode-chip,
+  .lg-filter-chip {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 .lg-mode-badge {
   color: #fff;
   font-size: 0.7rem;
@@ -218,9 +274,9 @@ body {
 
 /* ---------- Table ---------- */
 .lg-table thead th {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
   color: var(--lg-text-dim);
   border-bottom: 2px solid var(--lg-text) !important;
 }
