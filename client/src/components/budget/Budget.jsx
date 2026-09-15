@@ -129,7 +129,12 @@ export default function Budget({
                         </td>
                         <td className="text-nowrap">
                           {budgetDoc && (
-                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => deleteBudget(budgetDoc.id)}>
+                            <button
+                              className="btn btn-sm btn-link text-secondary p-1"
+                              onClick={() => deleteBudget(budgetDoc.id)}
+                              aria-label={`Delete budget for ${r.type}`}
+                              title="Delete"
+                            >
                               <Trash2 size={14} />
                             </button>
                           )}
