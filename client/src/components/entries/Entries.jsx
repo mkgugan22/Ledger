@@ -193,12 +193,14 @@ export default function Entries({
                             />
                           </td>
                           <td className="text-nowrap">
-                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={saveEdit}>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={saveEdit} aria-label="Save entry" title="Save">
                               <Check size={15} />
                             </button>
                             <button
                               className="btn btn-sm btn-link text-secondary p-1"
                               onClick={() => setEditingId(null)}
+                              aria-label="Cancel edit"
+                              title="Cancel"
                             >
                               <X size={15} />
                             </button>
@@ -220,12 +222,14 @@ export default function Entries({
                           <td className="text-end font-mono">₹{fmtINR(t.amount)}</td>
                           <td className="d-none d-md-table-cell text-secondary small">{t.note}<ReceiptLinks transactionId={t.id} /></td>
                           <td className="text-nowrap">
-                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => startEdit(t)}>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => startEdit(t)} aria-label={`Edit ${t.type} entry`} title="Edit">
                               <Pencil size={14} />
                             </button>
                             <button
                               className="btn btn-sm btn-link text-secondary p-1"
                               onClick={() => deleteTransaction(t.id)}
+                              aria-label={`Delete ${t.type} entry`}
+                              title="Delete"
                             >
                               <Trash2 size={14} />
                             </button>
