@@ -102,7 +102,7 @@ export default function Layout({
        *
        * Existing page components do NOT need to be modified.
        * ============================================================
-       */
+       */}
       <InteractiveLedgerCompanion />
     </div>
   );
