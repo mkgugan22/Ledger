@@ -1,0 +1,31 @@
+/* Additional ambient motion for the existing Ledger companion. UI-only. */
+.ilc-root { transform: translateZ(0); }
+.ilc-root .ilc-character { animation-duration: 3.2s; }
+.ilc-root .ilc-face { animation-duration: 2.8s; }
+.ilc-root .ilc-eye { animation: ilc-companion-blink 5.2s infinite; }
+.ilc-root .ilc-eye-left { animation-delay: .35s; }
+.ilc-root .ilc-eye-right { animation-delay: .5s; }
+.ilc-root .ilc-head { transition: transform .35s ease; }
+.ilc-root .ilc-speech { transition: transform .22s ease, box-shadow .22s ease; }
+.ilc-root.ilc-mood-curious .ilc-head { animation: ilc-companion-look 1.6s ease-in-out infinite; }
+.ilc-root.ilc-mood-thinking .ilc-head { animation: ilc-companion-think 1.15s ease-in-out infinite; }
+.ilc-root.ilc-mood-listening .ilc-head { animation: ilc-companion-listen 1.35s ease-in-out infinite; }
+.ilc-root.ilc-mood-excited .ilc-head { animation: ilc-companion-excited .55s ease-in-out infinite; }
+.ilc-root.ilc-mood-celebrate .ilc-head { animation: ilc-companion-celebrate .7s ease-in-out infinite; }
+.ilc-root.ilc-mood-happy .ilc-speech,
+.ilc-root.ilc-mood-very-happy .ilc-speech,
+.ilc-root.ilc-mood-celebrate .ilc-speech { box-shadow: 0 7px 22px rgba(184,145,47,.18), 0 1px 6px rgba(37,53,47,.06); }
+
+@keyframes ilc-companion-blink { 0%, 45%, 48%, 100% { transform: scaleY(1); } 46%, 47% { transform: scaleY(.12); } }
+@keyframes ilc-companion-look { 0%,100% { transform: translateX(0) rotate(0); } 35% { transform: translateX(-2px) rotate(-2deg); } 65% { transform: translateX(2px) rotate(2deg); } }
+@keyframes ilc-companion-think { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-4deg) translateY(-1px); } }
+@keyframes ilc-companion-listen { 0%,100% { transform: rotate(0); } 35% { transform: rotate(3deg); } 70% { transform: rotate(-2deg); } }
+@keyframes ilc-companion-excited { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.04); } }
+@keyframes ilc-companion-celebrate { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ilc-root .ilc-character,
+  .ilc-root .ilc-face,
+  .ilc-root .ilc-eye,
+  .ilc-root .ilc-head { animation: none !important; }
+}
