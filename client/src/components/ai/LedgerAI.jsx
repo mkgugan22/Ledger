@@ -97,11 +97,15 @@ export default function LedgerAI() {
     }
   }
 
+  // Clear/New chat is intentionally UI-only. Do not call the backend and
+  // do not delete or modify AiChatLog records. The next mount/reload can
+  // restore the persisted conversation from the server as before.
   function reset() {
     if (sending) return;
     setMessages([WELCOME]);
     setError("");
     setDraft("");
+    setStreamingText("");
   }
 
   return (
@@ -111,7 +115,7 @@ export default function LedgerAI() {
         subtitle="Personal financial insights from your Ledger data — read-only and private to your account."
         right={
           <Button variant="outline-secondary" size="sm" onClick={reset} disabled={sending}>
-            <RotateCcw size={14} className="me-1" /> New chat
+            <RotateCcw size={14} className="me-1" /> Clear chat
           </Button>
         }
       />
