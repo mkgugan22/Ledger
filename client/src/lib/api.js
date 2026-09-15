@@ -41,15 +41,10 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-// Normalize Mongo's `_id` to `id` so components don't need to know
-// which storage backend is in play.
 function withId(doc) {
   return { ...doc, id: doc._id };
 }
 
-// List endpoints return an array for legacy callers and { items, ... } only
-// when pagination is requested. Accept both forms so a rolling API deploy or
-// a pagination-aware caller cannot crash the dashboard.
 function collection(body) {
   if (Array.isArray(body)) return body;
   if (Array.isArray(body?.items)) return body.items;
@@ -71,9 +66,6 @@ export async function uploadTransactionReceipt(transactionId, file) {
 export const fetchTransactionReceipts = (transactionId) => request(`/transactions/${transactionId}/receipts`);
 export const transactionReceiptUrl = (transactionId, receiptId) => `${API_URL}/transactions/${transactionId}/receipts/${receiptId}`;
 
-// Auto-fill: sends a payslip PDF to the server for text extraction and gets
-// back a suggested { mode, type, amount, month, note } to prefill the Add
-// Entry form. Read-only — this never creates a transaction on its own.
 export async function parsePayslipDocument(file) {
   if (!file || file.size > 5 * 1024 * 1024) throw new Error("Choose a PDF under 5 MB.");
   if (file.type !== "application/pdf") throw new Error("Only PDF payslips are supported for auto-fill.");
@@ -87,18 +79,11 @@ export async function parsePayslipDocument(file) {
   return res.suggestion;
 }
 
-// Recurring transactions: ask the server to materialize this month's
-// entries from every template (recurring: true) the user has. Safe to call
-// more than once for the same month — already-generated entries are
-// skipped server-side.
 export const generateRecurringTransactions = async (month) => {
   const result = await request("/transactions/generate-recurring", { method: "POST", body: JSON.stringify({ month }) });
   return { ...result, created: result.created.map(withId) };
 };
 
-// CSV export downloads a file directly rather than going through the JSON
-// `request()` helper — it does its own fetch + blob handling and triggers
-// the browser's save dialog.
 export async function exportTransactionsCSV() {
   const res = await fetch(`${API_URL}/transactions/export`, { credentials: "include" });
   if (!res.ok) {
@@ -116,8 +101,6 @@ export async function exportTransactionsCSV() {
   URL.revokeObjectURL(url);
 }
 
-// CSV import: send raw file text, get back { imported, failed, errors }
-// where errors is a list of { line, error } for rows that were skipped.
 export const importTransactionsCSV = (csvText) =>
   request("/transactions/import", { method: "POST", body: JSON.stringify({ csv: csvText }) });
 
@@ -144,22 +127,10 @@ export const fetchBudgets = async (month) => collection(await request(month ? `/
 export const upsertBudget = async (data) => withId(await request("/budgets", { method: "POST", body: JSON.stringify(data) }));
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
 
-// Restores the visible Ledger AI conversation — used on mount so a
-// logout, a page reload, or just switching tabs doesn't drop the thread.
-// Returns { messages: [{ role, content, createdAt }, ...] } in
-// chronological order; an empty array means there's no history yet.
 export const fetchLedgerAIHistory = () => request("/ai/history");
 
-// Must stay byte-for-byte identical to STREAM_ERROR_MARKER in
-// server/src/routes/ai.js.
 const STREAM_ERROR_MARKER = "\u0000LEDGER_AI_STREAM_ERROR\u0000";
 
-// Streams the Ledger AI answer instead of waiting for the whole thing.
-// `onChunk(text)` (optional) is called as fragments arrive so the caller
-// can render text progressively. Resolves to the exact same shape as
-// before — { answer, generatedAt } — and rejects with the exact same
-// user-facing error messages as before, so existing callers that don't
-// pass onChunk still work unchanged.
 export function chatWithLedgerAI({ message, history }, onChunk) {
   return new Promise((resolve, reject) => {
     (async () => {
@@ -168,9 +139,6 @@ export function chatWithLedgerAI({ message, history }, onChunk) {
 
       const resetIdleTimeout = () => {
         clearTimeout(idleTimeout);
-        // Idle timeout, not total-time: resets every time a chunk
-        // arrives. 30s of total silence from the server is treated
-        // as a stall.
         idleTimeout = setTimeout(() => controller.abort(), 30000);
       };
 
@@ -214,8 +182,6 @@ export function chatWithLedgerAI({ message, history }, onChunk) {
       };
 
       if (!res.body) {
-        // Fallback for any environment without a readable stream body —
-        // same end result as before, just without progressive display.
         clearTimeout(idleTimeout);
         finish(await res.text());
         return;
