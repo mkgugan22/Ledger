@@ -5,6 +5,7 @@ import TopNavbar from "./TopNavbar.jsx";
 import AnimatedBackground from "../../lib/motion/AnimatedBackground.jsx";
 import PageTransition from "../../lib/motion/PageTransition.jsx";
 import InteractiveLedgerCompanion from "../../lib/motion/InteractiveLedgerCompanion.jsx";
+import "../../lib/motion/InteractiveLedgerCompanionEnhanced.css";
 
 export default function Layout({
   apiError,
@@ -101,7 +102,7 @@ export default function Layout({
        *
        * Existing page components do NOT need to be modified.
        * ============================================================
-       */}
+       */
       <InteractiveLedgerCompanion />
     </div>
   );
