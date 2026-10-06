@@ -20,7 +20,10 @@ export async function connectDB() {
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 50,
     minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE) || 5,
     serverSelectionTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
+    socketTimeoutMS: Number(process.env.MONGODB_SOCKET_TIMEOUT_MS) || 45000,
+    waitQueueTimeoutMS: Number(process.env.MONGODB_WAIT_QUEUE_TIMEOUT_MS) || 10000,
+    maxConnecting: Number(process.env.MONGODB_MAX_CONNECTING) || 10,
+    maxIdleTimeMS: Number(process.env.MONGODB_MAX_IDLE_TIME_MS) || 60000,
   });
   console.log("Connected to MongoDB (db: ledger)");
 }
