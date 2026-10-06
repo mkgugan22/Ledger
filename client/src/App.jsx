@@ -49,7 +49,7 @@ async function fetchBondsWithRetry() {
     try {
       return await fetchBonds();
     } catch (secondError) {
-      throw new Error(`Bond data could not be loaded (${secondError.message || firstError.message}).`);
+      throw new Error(`Bond data could not be loaded (${secondError.message || firstError.message}).`, { cause: secondError });
     }
   }
 }
