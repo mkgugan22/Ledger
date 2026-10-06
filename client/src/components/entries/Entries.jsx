@@ -42,6 +42,10 @@ export default function Entries({
       month: draft.month,
       mode: draft.mode,
       note: draft.note,
+      date: draft.date || undefined,
+      account: draft.account || "",
+      merchant: draft.merchant || "",
+      paymentMethod: draft.paymentMethod || "",
       recurring: !!draft.recurring, // preserve the recurring flag through inline edits
     });
     setEditingId(null);
@@ -148,7 +152,9 @@ export default function Entries({
                   <tr>
                     <th>Mode</th>
                     <th>Type</th>
+                    <th className="d-none d-md-table-cell">Date</th>
                     <th className="text-end">Amount</th>
+                    <th className="d-none d-md-table-cell">Merchant</th>
                     <th className="d-none d-md-table-cell">Note</th>
                     <th></th>
                   </tr>
@@ -181,14 +187,6 @@ export default function Entries({
                               size="sm"
                               type="number"
                               value={draft.amount}
-                              onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                              className="font-mono text-end"
-                            />
-                          </td>
-                          <td className="d-none d-md-table-cell">
-                            <Form.Control
-                              size="sm"
-                              value={draft.note || ""}
                               onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
                             />
                           </td>
