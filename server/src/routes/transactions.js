@@ -13,7 +13,7 @@ import { toCSV, parseCSV } from "../lib/csv.js";
 
 const router = Router();
 
-const CSV_COLUMNS = ["mode", "type", "amount", "month", "note", "recurring", "frequency"];
+const CSV_COLUMNS = ["mode", "type", "amount", "month", "date", "account", "merchant", "paymentMethod", "note", "recurring", "frequency"];
 
 // GET /api/transactions — list entries, with optional filtering and pagination.
 //
@@ -69,6 +69,10 @@ router.get(
       type: t.type,
       amount: t.amount,
       month: t.month,
+      date: t.date || "",
+      account: t.account || "",
+      merchant: t.merchant || "",
+      paymentMethod: t.paymentMethod || "",
       note: t.note || "",
       recurring: t.recurring ? "true" : "false",
       frequency: t.frequency || "",
@@ -135,56 +139,77 @@ router.post(
   validateBody(generateRecurringSchema),
   asyncHandler(async (req, res) => {
     const { month } = req.body;
-    const templates = await Transaction.find({ user: req.userId, recurring: true });
+    const templates = await Transaction.find({
+      user: req.userId,
+      recurring: true,
+    }).lean();
 
-    const created = [];
-    const skipped = [];
-    for (const template of templates) {
-      if (template.month === month) {
-        skipped.push({ type: template.type, reason: "This is the template's own month." });
-        continue;
-      }
-      const alreadyGenerated = await Transaction.exists({
-        user: req.userId,
-        generatedFrom: template._id,
-        month,
-      });
-      if (alreadyGenerated) {
-        skipped.push({ type: template.type, reason: "Already generated for this month." });
-        continue;
-      }
-      const result = await Transaction.updateOne({
-        user: req.userId,
-        generatedFrom: template._id,
-        month,
-      }, { $setOnInsert: {
-        user: req.userId,
-        mode: template.mode,
-        type: template.type,
-        amount: template.amount,
-        month,
-        note: template.note,
-        recurring: false,
-        generatedFrom: template._id,
-      } }, { upsert: true });
-      if (result.upsertedCount) {
-        created.push(await Transaction.findById(result.upsertedId));
-      } else {
-        skipped.push({ type: template.type, reason: "Already generated for this month." });
-      }
+    const eligibleTemplates = templates.filter((template) => template.month !== month);
+    const operations = eligibleTemplates.map((template) => ({
+      updateOne: {
+        filter: { user: req.userId, generatedFrom: template._id, month },
+        update: {
+          $setOnInsert: {
+            user: req.userId,
+            mode: template.mode,
+            type: template.type,
+            amount: template.amount,
+            month,
+            date: template.date || null,
+            account: template.account || "",
+            merchant: template.merchant || "",
+            paymentMethod: template.paymentMethod || "",
+            note: template.note || "",
+            recurring: false,
+            generatedFrom: template._id,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    let bulkResult = null;
+    if (operations.length) {
+      bulkResult = await Transaction.bulkWrite(operations, { ordered: false });
     }
+
+    const insertedIds = Object.values(bulkResult?.upsertedIds || {});
+    const created = insertedIds.length
+      ? await Transaction.find({ _id: { $in: insertedIds } }).lean()
+      : [];
+    const createdSet = new Set(created.map((item) => String(item.generatedFrom)));
+
+    const skipped = [
+      ...templates
+        .filter((template) => template.month === month)
+        .map((template) => ({ type: template.type, reason: "This is the template's own month." })),
+      ...eligibleTemplates
+        .filter((template) => !createdSet.has(String(template._id)))
+        .map((template) => ({ type: template.type, reason: "Already generated for this month." })),
+    ];
 
     res.status(201).json({ created, skipped });
   })
-);
-
-// POST /api/transactions — add a new entry
+);// POST /api/transactions — add a new entry
 router.post(
   "/",
   validateBody(transactionSchema),
   asyncHandler(async (req, res) => {
-    const { mode, type, amount, month, note, recurring, frequency } = req.body;
-    const doc = await Transaction.create({ user: req.userId, mode, type, amount, month, note, recurring, frequency });
+    const { mode, type, amount, month, date, account, merchant, paymentMethod, note, recurring, frequency } = req.body;
+    const doc = await Transaction.create({
+      user: req.userId,
+      mode,
+      type,
+      amount,
+      month,
+      date: date || null,
+      account,
+      merchant,
+      paymentMethod,
+      note,
+      recurring,
+      frequency,
+    });
     res.status(201).json(doc);
   })
 );
@@ -194,10 +219,23 @@ router.put(
   "/:id",
   validateBody(transactionSchema),
   asyncHandler(async (req, res) => {
-    const { mode, type, amount, month, note, recurring, frequency } = req.body;
+    const { mode, type, amount, month, date, account, merchant, paymentMethod, note, recurring, frequency } = req.body;
     const doc = await Transaction.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
-      { user: req.userId, mode, type, amount, month, note, recurring, frequency },
+      {
+        user: req.userId,
+        mode,
+        type,
+        amount,
+        month,
+        date: date || null,
+        account,
+        merchant,
+        paymentMethod,
+        note,
+        recurring,
+        frequency,
+      },
       { new: true, runValidators: true }
     );
     if (!doc) return res.status(404).json({ error: "Entry not found" });

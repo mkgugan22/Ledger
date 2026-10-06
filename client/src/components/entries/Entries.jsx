@@ -28,21 +28,26 @@ export default function Entries({
 
   const rows = useMemo(() => {
     const list = filterMode === "All" ? monthTx : monthTx.filter((t) => t.mode === filterMode);
-    return [...list].sort((a, b) => a.mode.localeCompare(b.mode));
+    return [...list].sort((a, b) => (a.date || a.month || "").localeCompare(b.date || b.month || "") || a.mode.localeCompare(b.mode));
   }, [monthTx, filterMode]);
 
   function startEdit(t) {
     setEditingId(t.id);
     setDraft({ ...t });
   }
+
   function saveEdit() {
     updateTransaction(editingId, {
       type: draft.type,
       amount: Number(draft.amount),
       month: draft.month,
       mode: draft.mode,
-      note: draft.note,
-      recurring: !!draft.recurring, // preserve the recurring flag through inline edits
+      date: draft.date || undefined,
+      account: draft.account || "",
+      merchant: draft.merchant || "",
+      paymentMethod: draft.paymentMethod || "",
+      note: draft.note || "",
+      recurring: !!draft.recurring,
     });
     setEditingId(null);
   }
@@ -54,11 +59,9 @@ export default function Entries({
     try {
       const result = await generateRecurring(selectedMonth);
       const createdCount = result?.created?.length || 0;
-      setStatusMsg(
-        createdCount > 0
-          ? `Generated ${createdCount} recurring ${createdCount === 1 ? "entry" : "entries"} for ${monthLabel(selectedMonth)}.`
-          : `Nothing new to generate for ${monthLabel(selectedMonth)} — recurring entries are already up to date.`
-      );
+      setStatusMsg(createdCount > 0
+        ? `Generated ${createdCount} recurring ${createdCount === 1 ? "entry" : "entries"} for ${monthLabel(selectedMonth)}.`
+        : `Nothing new to generate for ${monthLabel(selectedMonth)} — recurring entries are already up to date.`);
     } catch (err) {
       setStatusMsg(`Couldn't generate recurring entries (${err.message}).`);
     } finally {
@@ -95,13 +98,7 @@ export default function Entries({
 
       <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
         {["All", ...MODES].map((m) => (
-          <button
-            key={m}
-            onClick={() => setFilterMode(m)}
-            className={`lg-filter-chip${filterMode === m ? " active" : ""}`}
-          >
-            {m}
-          </button>
+          <button key={m} onClick={() => setFilterMode(m)} className={`lg-filter-chip${filterMode === m ? " active" : ""}`}>{m}</button>
         ))}
 
         <div className="ms-auto d-flex gap-2 flex-wrap">
@@ -113,8 +110,7 @@ export default function Entries({
           )}
           {exportCSV && (
             <Button size="sm" variant="outline-secondary" onClick={() => exportCSV()}>
-              <Download size={14} className="me-1" />
-              Export CSV
+              <Download size={14} className="me-1" /> Export CSV
             </Button>
           )}
           {importCSV && (
@@ -123,13 +119,7 @@ export default function Entries({
                 {importing ? <Spinner size="sm" animation="border" className="me-1" /> : <Upload size={14} className="me-1" />}
                 Import CSV
               </Button>
-              <Form.Control
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleImportFile}
-                className="d-none"
-              />
+              <Form.Control ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} className="d-none" />
             </>
           )}
         </div>
@@ -146,11 +136,9 @@ export default function Entries({
               <Table className="lg-table mb-0" borderless>
                 <thead>
                   <tr>
-                    <th>Mode</th>
-                    <th>Type</th>
-                    <th className="text-end">Amount</th>
-                    <th className="d-none d-md-table-cell">Note</th>
-                    <th></th>
+                    <th>Mode</th><th>Type</th><th className="d-none d-md-table-cell">Date</th>
+                    <th className="text-end">Amount</th><th className="d-none d-md-table-cell">Merchant</th>
+                    <th className="d-none d-md-table-cell">Note</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,80 +147,35 @@ export default function Entries({
                       {editingId === t.id ? (
                         <>
                           <td style={{ minWidth: 110 }}>
-                            <Form.Select
-                              size="sm"
-                              value={draft.mode}
-                              onChange={(e) => setDraft((d) => ({ ...d, mode: e.target.value }))}
-                            >
-                              {MODES.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
+                            <Form.Select size="sm" value={draft.mode} onChange={(e) => setDraft((d) => ({ ...d, mode: e.target.value }))}>
+                              {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                             </Form.Select>
                           </td>
-                          <td>
-                            <Form.Control
-                              size="sm"
-                              value={draft.type}
-                              onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))}
-                            />
+                          <td><Form.Control size="sm" value={draft.type} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))} /></td>
+                          <td className="d-none d-md-table-cell">
+                            <Form.Control size="sm" type="date" value={draft.date || `${draft.month}-01`} onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))} />
                           </td>
                           <td className="text-end">
-                            <Form.Control
-                              size="sm"
-                              type="number"
-                              value={draft.amount}
-                              onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                              className="font-mono text-end"
-                            />
+                            <Form.Control size="sm" type="number" value={draft.amount} onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))} className="font-mono text-end" />
                           </td>
-                          <td className="d-none d-md-table-cell">
-                            <Form.Control
-                              size="sm"
-                              value={draft.note || ""}
-                              onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
-                            />
-                          </td>
+                          <td className="d-none d-md-table-cell"><Form.Control size="sm" value={draft.merchant || ""} onChange={(e) => setDraft((d) => ({ ...d, merchant: e.target.value }))} placeholder="Merchant" /></td>
+                          <td className="d-none d-md-table-cell"><Form.Control size="sm" value={draft.note || ""} onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))} /></td>
                           <td className="text-nowrap">
-                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={saveEdit} aria-label="Save entry" title="Save">
-                              <Check size={15} />
-                            </button>
-                            <button
-                              className="btn btn-sm btn-link text-secondary p-1"
-                              onClick={() => setEditingId(null)}
-                              aria-label="Cancel edit"
-                              title="Cancel"
-                            >
-                              <X size={15} />
-                            </button>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={saveEdit} aria-label="Save entry" title="Save"><Check size={15} /></button>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => setEditingId(null)} aria-label="Cancel edit" title="Cancel"><X size={15} /></button>
                           </td>
                         </>
                       ) : (
                         <>
-                          <td>
-                            <span className="lg-mode-badge" style={{ background: MODE_COLOR[t.mode] }}>
-                              {t.mode}
-                            </span>
-                          </td>
-                          <td>
-                            {t.type}
-                            {t.recurring && (
-                              <Repeat size={12} className="ms-1 text-secondary" title="Recurring entry" />
-                            )}
-                          </td>
+                          <td><span className="lg-mode-badge" style={{ background: MODE_COLOR[t.mode] }}>{t.mode}</span></td>
+                          <td>{t.type}{t.recurring && <Repeat size={12} className="ms-1 text-secondary" title="Recurring entry" />}</td>
+                          <td className="d-none d-md-table-cell text-secondary small">{t.date || `${t.month}-01`}</td>
                           <td className="text-end font-mono">₹{fmtINR(t.amount)}</td>
+                          <td className="d-none d-md-table-cell text-secondary small">{t.merchant || "—"}{t.paymentMethod ? ` · ${t.paymentMethod}` : ""}</td>
                           <td className="d-none d-md-table-cell text-secondary small">{t.note}<ReceiptLinks transactionId={t.id} /></td>
                           <td className="text-nowrap">
-                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => startEdit(t)} aria-label={`Edit ${t.type} entry`} title="Edit">
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              className="btn btn-sm btn-link text-secondary p-1"
-                              onClick={() => deleteTransaction(t.id)}
-                              aria-label={`Delete ${t.type} entry`}
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => startEdit(t)} aria-label={`Edit ${t.type} entry`} title="Edit"><Pencil size={14} /></button>
+                            <button className="btn btn-sm btn-link text-secondary p-1" onClick={() => deleteTransaction(t.id)} aria-label={`Delete ${t.type} entry`} title="Delete"><Trash2 size={14} /></button>
                           </td>
                         </>
                       )}

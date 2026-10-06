@@ -3,6 +3,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
+import mongoose from "mongoose";
+import crypto from "node:crypto";
 import transactionsRouter from "./routes/transactions.js";
 import valuationsRouter from "./routes/valuations.js";
 import authRouter from "./routes/auth.js";
@@ -10,6 +12,8 @@ import investmentsRouter from "./routes/investments.js";
 import bondsRouter from "./routes/bonds.js";
 import marketRouter from "./routes/market.js";
 import budgetsRouter from "./routes/budgets.js";
+import debtsRouter from "./routes/debts.js";
+import billsRouter from "./routes/bills.js";
 import receiptsRouter from "./routes/receipts.js";
 import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -24,6 +28,7 @@ import { aiRateLimit } from "./middleware/rateLimit.js";
 // instance via mongodb-memory-server.
 export function createApp() {
   const app = express();
+  app.disable("x-powered-by");
   const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
     .split(",")
     .map((o) => o.trim());
@@ -55,10 +60,25 @@ export function createApp() {
     })
   );
   app.use(cors({ origin: allowedOrigins, credentials: true }));
+  // Receipt and payslip uploads are JSON-wrapped base64 payloads, so their
+  // body must be allowed to exceed the normal API limit without enlarging
+  // every authenticated endpoint.
+  app.use("/api/transactions/:id/receipts", express.json({ limit: "8mb" }));
+  app.use("/api/documents/parse-payslip", express.json({ limit: "8mb" }));
   app.use(express.json({ limit: "2mb" }));
+  app.use((req, res, next) => {
+    const requestId = crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader("X-Request-Id", requestId);
+    next();
+  });
   app.use(cookieParser());
 
   app.get("/api/health", (req, res) => res.json({ ok: true }));
+  app.get("/api/ready", (req, res) => {
+    const ready = mongoose.connection.readyState === 1;
+    res.status(ready ? 200 : 503).json({ ok: ready, database: ready ? "ready" : "unavailable" });
+  });
   app.use("/api/auth", authRouter);
   app.use(requireAuth);
   app.use("/api/ai", aiRateLimit, aiRouter);
@@ -73,6 +93,8 @@ export function createApp() {
   app.use("/api/investments", investmentsRouter);
   app.use("/api/bonds", bondsRouter);
   app.use("/api/budgets", budgetsRouter);
+  app.use("/api/debts", debtsRouter);
+  app.use("/api/bills", billsRouter);
 
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -83,10 +105,9 @@ export function createApp() {
     console.error(err);
     const status = err.status || (err.name === "ValidationError" || err.name === "CastError" ? 400 : 500);
     res.status(status).json({
-  error: status >= 500 && !err.expose
-    ? "Something went wrong."
-    : err.message || "Invalid request.",
-});
+      error: status >= 500 && !err.expose ? "Something went wrong." : err.message || "Invalid request.",
+      requestId: req.requestId,
+    });
   });
 
   return app;

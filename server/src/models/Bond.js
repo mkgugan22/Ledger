@@ -18,4 +18,7 @@ const bondSchema = new mongoose.Schema({
   source: { type: String, default: "Manual entry" },
 }, { timestamps: true });
 
+bondSchema.index({ user: 1, issuer: 1, date: 1 });
+bondSchema.index({ user: 1, type: 1, date: 1 });
+
 export default mongoose.model("Bond", bondSchema);

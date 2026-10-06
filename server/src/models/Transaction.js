@@ -11,6 +11,11 @@ const transactionSchema = new mongoose.Schema(
     type: { type: String, required: true, trim: true },
     amount: { type: Number, required: true, min: 0 },
     month: { type: String, required: true }, // "YYYY-MM"
+    // Optional precision fields. Legacy entries remain valid when these are absent.
+    date: { type: String, default: null }, // "YYYY-MM-DD"
+    account: { type: String, default: "", trim: true, maxlength: 120 },
+    merchant: { type: String, default: "", trim: true, maxlength: 160 },
+    paymentMethod: { type: String, default: "", trim: true, maxlength: 80 },
     note: { type: String, default: "", trim: true },
     recurring: { type: Boolean, default: false },
     frequency: { type: String, enum: ["monthly"], default: undefined },
@@ -23,6 +28,8 @@ const transactionSchema = new mongoose.Schema(
 // the index keeps concurrent users from scanning unrelated documents.
 transactionSchema.index({ user: 1, createdAt: 1 });
 transactionSchema.index({ user: 1, month: 1, createdAt: 1 });
+transactionSchema.index({ user: 1, date: 1, createdAt: 1 });
+transactionSchema.index({ user: 1, account: 1, date: 1 });
 transactionSchema.index({ user: 1, recurring: 1 });
 transactionSchema.index(
   { user: 1, generatedFrom: 1, month: 1 },

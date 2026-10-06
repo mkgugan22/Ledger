@@ -129,6 +129,16 @@ export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE"
 
 export const fetchLedgerAIHistory = () => request("/ai/history");
 
+export const fetchDebts = async () => collection(await request("/debts")).map(withId);
+export const createDebt = async (data) => withId(await request("/debts", { method: "POST", body: JSON.stringify(data) }));
+export const editDebt = async (id, data) => withId(await request(`/debts/${id}`, { method: "PUT", body: JSON.stringify(data) }));
+export const removeDebt = (id) => request(`/debts/${id}`, { method: "DELETE" });
+
+export const fetchBills = async () => collection(await request("/bills")).map(withId);
+export const createBill = async (data) => withId(await request("/bills", { method: "POST", body: JSON.stringify(data) }));
+export const editBill = async (id, data) => withId(await request(`/bills/${id}`, { method: "PUT", body: JSON.stringify(data) }));
+export const removeBill = (id) => request(`/bills/${id}`, { method: "DELETE" });
+
 const STREAM_ERROR_MARKER = "\u0000LEDGER_AI_STREAM_ERROR\u0000";
 
 export function chatWithLedgerAI({ message, history }, onChunk) {
