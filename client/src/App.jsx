@@ -148,7 +148,7 @@ export default function App() {
   const deleteBudget = useCallback(async (id) => { try { await removeBudget(id); setBudgets((prev) => prev.filter((b) => b.id !== id)); } catch (err) { setApiError(`Couldn't delete that budget (${err.message}).`); } }, []);
 
   const shared = {
-    selectedMonth, setSelectedMonth, defaultMonth: selectedMonth, allMonths, totals, monthTx,
+    selectedMonth, setSelectedMonth, defaultMonth: selectedMonth, allMonths, totals, monthTx, transactions, investments, bonds,
     categoryChartData, typeHints, valuations, instrumentNames, trendData,
     addTransaction, updateTransaction, deleteTransaction, addValuation, deleteValuation,
     generateRecurring, exportCSV, importCSV,
