@@ -172,7 +172,11 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
                   <Form.Control
                     type="month"
                     value={month}
-                    onChange={(e) => setMonth(e.target.value)}
+                    onChange={(e) => {
+                      const nextMonth = e.target.value;
+                      setMonth(nextMonth);
+                      if (!date || !date.startsWith(nextMonth)) setDate(`${nextMonth}-01`);
+                    }}
                     required
                   />
                 </Form.Group>
