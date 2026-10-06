@@ -13,7 +13,7 @@ import { toCSV, parseCSV } from "../lib/csv.js";
 
 const router = Router();
 
-const CSV_COLUMNS = ["mode", "type", "amount", "month", "note", "recurring", "frequency"];
+const CSV_COLUMNS = ["mode", "type", "amount", "month", "date", "account", "merchant", "paymentMethod", "note", "recurring", "frequency"];
 
 // GET /api/transactions — list entries, with optional filtering and pagination.
 //
@@ -69,6 +69,10 @@ router.get(
       type: t.type,
       amount: t.amount,
       month: t.month,
+      date: t.date || "",
+      account: t.account || "",
+      merchant: t.merchant || "",
+      paymentMethod: t.paymentMethod || "",
       note: t.note || "",
       recurring: t.recurring ? "true" : "false",
       frequency: t.frequency || "",
@@ -191,8 +195,21 @@ router.post(
   "/",
   validateBody(transactionSchema),
   asyncHandler(async (req, res) => {
-    const { mode, type, amount, month, note, recurring, frequency } = req.body;
-    const doc = await Transaction.create({ user: req.userId, mode, type, amount, month, note, recurring, frequency });
+    const { mode, type, amount, month, date, account, merchant, paymentMethod, note, recurring, frequency } = req.body;
+    const doc = await Transaction.create({
+      user: req.userId,
+      mode,
+      type,
+      amount,
+      month,
+      date: date || null,
+      account,
+      merchant,
+      paymentMethod,
+      note,
+      recurring,
+      frequency,
+    });
     res.status(201).json(doc);
   })
 );
@@ -202,10 +219,23 @@ router.put(
   "/:id",
   validateBody(transactionSchema),
   asyncHandler(async (req, res) => {
-    const { mode, type, amount, month, note, recurring, frequency } = req.body;
+    const { mode, type, amount, month, date, account, merchant, paymentMethod, note, recurring, frequency } = req.body;
     const doc = await Transaction.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
-      { user: req.userId, mode, type, amount, month, note, recurring, frequency },
+      {
+        user: req.userId,
+        mode,
+        type,
+        amount,
+        month,
+        date: date || null,
+        account,
+        merchant,
+        paymentMethod,
+        note,
+        recurring,
+        frequency,
+      },
       { new: true, runValidators: true }
     );
     if (!doc) return res.status(404).json({ error: "Entry not found" });
