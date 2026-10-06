@@ -4,6 +4,7 @@ import { PlusCircle, Sparkles } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
 import { parsePayslipDocument } from "../../lib/api.js";
+import { currentDate } from "../../lib/format.js";
 
 const PLACEHOLDERS = {
   Income: "Salary, NATS…",
@@ -17,6 +18,10 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
   const [type, setType] = useState("");
   const [amount, setAmount] = useState("");
   const [month, setMonth] = useState(defaultMonth);
+  const [date, setDate] = useState(defaultMonth === currentDate().slice(0, 7) ? currentDate() : `${defaultMonth}-01`);
+  const [account, setAccount] = useState("");
+  const [merchant, setMerchant] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [note, setNote] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [receipt, setReceipt] = useState(null);
@@ -40,7 +45,7 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
       setMode(suggestion.mode || "Income");
       setType(suggestion.type || "Salary");
       setAmount(String(suggestion.amount));
-      if (suggestion.month) setMonth(suggestion.month);
+      if (suggestion.month) { setMonth(suggestion.month); setDate(`${suggestion.month}-01`); }
       if (suggestion.note) setNote(suggestion.note);
       setAutoFillNotice("Fields below were filled in from your payslip — check them over before saving.");
     } catch (err) {
@@ -53,9 +58,13 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
   function submit(e) {
     e.preventDefault();
     if (!type.trim() || !amount || Number(amount) <= 0) return;
-    addTransaction({ mode, type: type.trim(), amount: Number(amount), month, note: note.trim(), recurring }, receipt);
+    addTransaction({ mode, type: type.trim(), amount: Number(amount), month, date, account: account.trim(), merchant: merchant.trim(), paymentMethod: paymentMethod.trim(), note: note.trim(), recurring }, receipt);
     setType("");
     setAmount("");
+    setDate(month === currentDate().slice(0, 7) ? currentDate() : `${month}-01`);
+    setAccount("");
+    setMerchant("");
+    setPaymentMethod("");
     setNote("");
     setRecurring(false);
     setReceipt(null);
@@ -169,7 +178,31 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
                 </Form.Group>
               </Col>
 
-              <Col xs={12}>
+              <Col sm={4}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-secondary">Date (optional)</Form.Label>
+                  <Form.Control type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Form.Group>
+              </Col>
+              <Col sm={4}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-secondary">Account (optional)</Form.Label>
+                  <Form.Control value={account} onChange={(e) => setAccount(e.target.value)} placeholder="Bank / wallet / card" />
+                </Form.Group>
+              </Col>
+              <Col sm={4}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-secondary">Payment method</Form.Label>
+                  <Form.Control value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="UPI, card, cash..." />
+                </Form.Group>
+              </Col>
+              <Col sm={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold text-secondary">Merchant (optional)</Form.Label>
+                  <Form.Control value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Who was paid / who paid you" />
+                </Form.Group>
+              </Col>
+              <Col sm={6}>
                 <Form.Group>
                   <Form.Label className="small fw-semibold text-secondary">Note (optional)</Form.Label>
                   <Form.Control
