@@ -213,7 +213,7 @@ export const debtSchema = z.object({
 });
 export const debtUpdateSchema = debtSchema.partial();
 
-export const billSchema = z.object({
+const billBaseSchema = z.object({
   name: z.string().trim().min(1, "Bill name is required.").max(120),
   amount: z.number().min(0),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be in YYYY-MM-DD format."),
@@ -222,5 +222,10 @@ export const billSchema = z.object({
   frequency: z.enum(["monthly"]).optional(),
   status: z.enum(["active", "paid"]).optional().default("active"),
   note: z.string().trim().max(500).optional().default(""),
-}).transform((data) => ({ ...data, frequency: data.recurring ? data.frequency || "monthly" : undefined }));
-export const billUpdateSchema = billSchema.partial();
+});
+
+export const billSchema = billBaseSchema.transform((data) => ({
+  ...data,
+  frequency: data.recurring ? data.frequency || "monthly" : undefined,
+}));
+export const billUpdateSchema = billBaseSchema.partial();
