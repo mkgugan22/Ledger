@@ -27,9 +27,9 @@ async function request(path, options = {}) {
     });
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error("Ledger AI is taking longer than usual to respond. Please try again in a moment.");
+      throw new Error("Ledger AI is taking longer than usual to respond. Please try again in a moment.", { cause: err });
     }
-    throw new Error("Can't reach the server. It may be down or misconfigured — please try again in a moment.");
+    throw new Error("Can't reach the server. It may be down or misconfigured — please try again in a moment.", { cause: err });
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
