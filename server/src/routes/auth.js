@@ -26,23 +26,32 @@ const router = Router();
 // anymore" result in memory per process and skip the query entirely once
 // we've seen it.
 let legacyClaimStillPossible = true;
+let legacyClaimPromise = null;
 
 export async function claimLegacyRecords(userId) {
   if (!legacyClaimStillPossible) return;
-  if (await User.countDocuments() !== 1) {
-    legacyClaimStillPossible = false;
-    return;
+  if (!legacyClaimPromise) {
+    legacyClaimPromise = (async () => {
+      if (await User.countDocuments() !== 1) {
+        legacyClaimStillPossible = false;
+        return;
+      }
+      await Promise.all([
+        Transaction.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
+        Valuation.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
+        Investment.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
+      ]);
+      legacyClaimStillPossible = false;
+    })().finally(() => {
+      legacyClaimPromise = null;
+    });
   }
-  await Promise.all([
-    Transaction.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
-    Valuation.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
-    Investment.updateMany({ user: { $exists: false } }, { $set: { user: userId } }),
-  ]);
-  legacyClaimStillPossible = false;
+  await legacyClaimPromise;
 }
 // Test-only helper to reset the in-memory cache between test cases.
 export function _resetLegacyClaimCache() {
   legacyClaimStillPossible = true;
+  legacyClaimPromise = null;
 }
 
 router.post(
