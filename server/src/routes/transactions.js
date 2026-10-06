@@ -135,29 +135,29 @@ router.post(
   validateBody(generateRecurringSchema),
   asyncHandler(async (req, res) => {
     const { month } = req.body;
-    const templates = await Transaction.find({ user: req.userId, recurring: true });
+    const templates = await Transaction.find({
+      user: req.userId,
+      recurring: true,
+    }).lean();
+
+    const eligibleTemplates = templates.filter((template) => template.month !== month);
+    const generatedIds = eligibleTemplates.length
+      ? await Transaction.find({
+        user: req.userId,
+        month,
+        generatedFrom: { $in: eligibleTemplates.map((template) => template._id) },
+      }).select({ generatedFrom: 1 }).lean()
+      : [];
+    const generatedSet = new Set(generatedIds.map((item) => String(item.generatedFrom)));
 
     const created = [];
-    const skipped = [];
-    for (const template of templates) {
-      if (template.month === month) {
-        skipped.push({ type: template.type, reason: "This is the template's own month." });
-        continue;
-      }
-      const alreadyGenerated = await Transaction.exists({
-        user: req.userId,
-        generatedFrom: template._id,
-        month,
-      });
-      if (alreadyGenerated) {
-        skipped.push({ type: template.type, reason: "Already generated for this month." });
-        continue;
-      }
-      const result = await Transaction.updateOne({
-        user: req.userId,
-        generatedFrom: template._id,
-        month,
-      }, { $setOnInsert: {
+    const skipped = eligibleTemplates
+      .filter((template) => generatedSet.has(String(template._id)))
+      .map((template) => ({ type: template.type, reason: "Already generated for this month." }));
+
+    const inserts = eligibleTemplates
+      .filter((template) => !generatedSet.has(String(template._id)))
+      .map((template) => ({
         user: req.userId,
         mode: template.mode,
         type: template.type,
@@ -166,15 +166,18 @@ router.post(
         note: template.note,
         recurring: false,
         generatedFrom: template._id,
-      } }, { upsert: true });
-      if (result.upsertedCount) {
-        created.push(await Transaction.findById(result.upsertedId));
-      } else {
-        skipped.push({ type: template.type, reason: "Already generated for this month." });
-      }
+      }));
+
+    if (inserts.length) {
+      const inserted = await Transaction.insertMany(inserts, { ordered: false });
+      created.push(...inserted);
     }
 
-    res.status(201).json({ created, skipped });
+    const ownMonth = templates
+      .filter((template) => template.month === month)
+      .map((template) => ({ type: template.type, reason: "This is the template's own month." }));
+
+    res.status(201).json({ created, skipped: [...ownMonth, ...skipped] });
   })
 );
 
