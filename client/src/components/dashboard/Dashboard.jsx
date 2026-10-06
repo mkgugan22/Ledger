@@ -19,6 +19,7 @@ import { fmtINR, monthLabel } from "../../lib/format.js";
 import Alerts from "./Alerts.jsx";
 import AnimatedCard from "../../lib/motion/AnimatedCard.jsx";
 import AnimatedNumber from "../../lib/motion/AnimatedNumber.jsx";
+import DashboardCommandCenter from "./DashboardCommandCenter.jsx";
 
 export default function Dashboard({
   selectedMonth,
@@ -26,6 +27,11 @@ export default function Dashboard({
   totals,
   categoryChartData,
   alerts = [],
+  transactions = [],
+  investments = [],
+  bonds = [],
+  valuations = [],
+  monthBudgets = [],
 }) {
   const cards = [
     { label: "Income", value: totals.Income, icon: TrendingUp, color: MODE_COLOR.Income },
