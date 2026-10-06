@@ -12,6 +12,8 @@ import investmentsRouter from "./routes/investments.js";
 import bondsRouter from "./routes/bonds.js";
 import marketRouter from "./routes/market.js";
 import budgetsRouter from "./routes/budgets.js";
+import debtsRouter from "./routes/debts.js";
+import billsRouter from "./routes/bills.js";
 import receiptsRouter from "./routes/receipts.js";
 import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -91,6 +93,8 @@ export function createApp() {
   app.use("/api/investments", investmentsRouter);
   app.use("/api/bonds", bondsRouter);
   app.use("/api/budgets", budgetsRouter);
+  app.use("/api/debts", debtsRouter);
+  app.use("/api/bills", billsRouter);
 
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -101,10 +105,9 @@ export function createApp() {
     console.error(err);
     const status = err.status || (err.name === "ValidationError" || err.name === "CastError" ? 400 : 500);
     res.status(status).json({
-  error: status >= 500 && !err.expose
-    ? "Something went wrong."
-    : err.message || "Invalid request.",
-});
+      error: status >= 500 && !err.expose ? "Something went wrong." : err.message || "Invalid request.",
+      requestId: req.requestId,
+    });
   });
 
   return app;
