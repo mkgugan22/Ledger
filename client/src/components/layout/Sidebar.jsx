@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Landmark, Menu, BookOpen, PlusCircle, List, PiggyBank,
+  Landmark, BookOpen, PlusCircle, List, PiggyBank,
   TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote,
 } from "lucide-react";
 const NAV_ITEMS = [
