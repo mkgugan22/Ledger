@@ -10,6 +10,7 @@ import SavingsTracker from "./components/savings/SavingsTracker.jsx";
 import Login from "./components/auth/Login.jsx";
 import SipGrowth from "./components/investments/SipGrowth.jsx";
 import Bonds from "./components/bonds/Bonds.jsx";
+import Obligations from "./components/obligations/Obligations.jsx";
 import {
   createTransaction,
   editTransaction,
@@ -29,6 +30,14 @@ import {
   upsertBudget,
   removeBudget,
   uploadTransactionReceipt,
+  fetchDebts,
+  createDebt,
+  editDebt,
+  removeDebt,
+  fetchBills,
+  createBill,
+  editBill,
+  removeBill,
 } from "./lib/api.js";
 import { currentMonth } from "./lib/format.js";
 import { MODES } from "./lib/constants.js";
@@ -64,6 +73,8 @@ export default function App() {
   const [investments, setInvestments] = useState([]);
   const [bonds, setBonds] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [debts, setDebts] = useState([]);
+  const [bills, setBills] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [theme, setTheme] = useState(() => localStorage.getItem("ledger-theme") || "light");
 
@@ -74,14 +85,16 @@ export default function App() {
     if (!user) return;
     (async () => {
       try {
-        const [tx, val, inv, bnd, bud] = await Promise.all([
+        const [tx, val, inv, bnd, bud, debtItems, billItems] = await Promise.all([
           fetchTransactions(),
           fetchValuations(),
           fetchInvestments().catch(() => []),
           fetchBondsWithRetry(),
           fetchBudgets().catch(() => []),
+          fetchDebts().catch(() => []),
+          fetchBills().catch(() => []),
         ]);
-        setTransactions(tx); setValuations(val); setInvestments(inv); setBonds(bnd); setBudgets(bud);
+        setTransactions(tx); setValuations(val); setInvestments(inv); setBonds(bnd); setBudgets(bud); setDebts(debtItems); setBills(billItems);
         setApiError("");
       } catch (err) {
         setApiError(`Couldn't load your saved data (${err.message}). Refresh the page after the API is available.`);
@@ -133,6 +146,58 @@ export default function App() {
     return result;
   }, []);
 
+
+
+  const addDebt = useCallback(async (entry) => {
+    try {
+      const doc = await createDebt(entry);
+      setDebts((prev) => [...prev, doc]);
+    } catch (err) {
+      setApiError(`Couldn't save that debt (${err.message}).`);
+    }
+  }, []);
+  const updateDebt = useCallback(async (id, patch) => {
+    try {
+      const doc = await editDebt(id, patch);
+      setDebts((prev) => prev.map((item) => (item.id === id ? doc : item)));
+    } catch (err) {
+      setApiError(`Couldn't update that debt (${err.message}).`);
+    }
+  }, []);
+  const deleteDebt = useCallback(async (id) => {
+    try {
+      await removeDebt(id);
+      setDebts((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      setApiError(`Couldn't delete that debt (${err.message}).`);
+    }
+  }, []);
+
+  const addBill = useCallback(async (entry) => {
+    try {
+      const doc = await createBill(entry);
+      setBills((prev) => [...prev, doc]);
+    } catch (err) {
+      setApiError(`Couldn't save that bill (${err.message}).`);
+    }
+  }, []);
+  const updateBill = useCallback(async (id, patch) => {
+    try {
+      const doc = await editBill(id, patch);
+      setBills((prev) => prev.map((item) => (item.id === id ? doc : item)));
+    } catch (err) {
+      setApiError(`Couldn't update that bill (${err.message}).`);
+    }
+  }, []);
+  const deleteBill = useCallback(async (id) => {
+    try {
+      await removeBill(id);
+      setBills((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      setApiError(`Couldn't delete that bill (${err.message}).`);
+    }
+  }, []);
+
   const addBudget = useCallback(async (entry) => {
     try {
       const doc = await upsertBudget(entry);
@@ -152,7 +217,7 @@ export default function App() {
     categoryChartData, typeHints, valuations, instrumentNames, trendData,
     addTransaction, updateTransaction, deleteTransaction, addValuation, deleteValuation,
     generateRecurring, exportCSV, importCSV,
-    monthBudgets, addBudget, deleteBudget, alerts,
+    monthBudgets, addBudget, deleteBudget, alerts, debts, bills,
   };
 
   const addInvestmentItem = useCallback((item) => setInvestments((prev) => [...prev, item]), []);
@@ -172,6 +237,7 @@ export default function App() {
         <Route path="savings" element={<SavingsTracker {...shared} />} />
         <Route path="sip-growth" element={<SipGrowth investments={investments} onInvestmentAdded={addInvestmentItem} onInvestmentUpdated={updateInvestmentItem} />} />
         <Route path="bonds" element={<Bonds bonds={bonds} investments={investments} onBondAdded={addBondItem} onBondUpdated={updateBondItem} />} />
+        <Route path="obligations" element={<Obligations debts={debts} bills={bills} addDebt={addDebt} updateDebt={updateDebt} deleteDebt={deleteDebt} addBill={addBill} updateBill={updateBill} deleteBill={deleteBill} />} />
         <Route path="ledger-ai" element={<LedgerAI />} />
       </Route>
     </Routes>
