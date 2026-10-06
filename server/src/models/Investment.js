@@ -19,4 +19,7 @@ const investmentSchema = new mongoose.Schema({
   benchmarkReturn: { type: Number },
 }, { timestamps: true });
 
+investmentSchema.index({ user: 1, fund: 1, date: 1 });
+investmentSchema.index({ user: 1, type: 1, date: 1 });
+
 export default mongoose.model("Investment", investmentSchema);
