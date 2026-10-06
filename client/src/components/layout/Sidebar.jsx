@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Landmark, BookOpen, PlusCircle, List, PiggyBank,
-  TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote,
+  TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote, CreditCard,
 } from "lucide-react";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: BookOpen, end: true },
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: "/savings", label: "Savings Tracker", icon: PiggyBank },
   { to: "/sip-growth", label: "SIP Growth", icon: TrendingUp },
   { to: "/bonds", label: "Bonds", icon: Banknote },
+  { to: "/obligations", label: "Obligations", icon: CreditCard },
   { to: "/ledger-ai", label: "Ledger AI", icon: Sparkles },
 ];
 export default function Sidebar({ user, theme, onThemeToggle, onLogout }) {
