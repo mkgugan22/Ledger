@@ -141,47 +141,52 @@ router.post(
     }).lean();
 
     const eligibleTemplates = templates.filter((template) => template.month !== month);
-    const generatedIds = eligibleTemplates.length
-      ? await Transaction.find({
-        user: req.userId,
-        month,
-        generatedFrom: { $in: eligibleTemplates.map((template) => template._id) },
-      }).select({ generatedFrom: 1 }).lean()
-      : [];
-    const generatedSet = new Set(generatedIds.map((item) => String(item.generatedFrom)));
+    const operations = eligibleTemplates.map((template) => ({
+      updateOne: {
+        filter: { user: req.userId, generatedFrom: template._id, month },
+        update: {
+          $setOnInsert: {
+            user: req.userId,
+            mode: template.mode,
+            type: template.type,
+            amount: template.amount,
+            month,
+            date: template.date || null,
+            account: template.account || "",
+            merchant: template.merchant || "",
+            paymentMethod: template.paymentMethod || "",
+            note: template.note || "",
+            recurring: false,
+            generatedFrom: template._id,
+          },
+        },
+        upsert: true,
+      },
+    }));
 
-    const created = [];
-    const skipped = eligibleTemplates
-      .filter((template) => generatedSet.has(String(template._id)))
-      .map((template) => ({ type: template.type, reason: "Already generated for this month." }));
-
-    const inserts = eligibleTemplates
-      .filter((template) => !generatedSet.has(String(template._id)))
-      .map((template) => ({
-        user: req.userId,
-        mode: template.mode,
-        type: template.type,
-        amount: template.amount,
-        month,
-        note: template.note,
-        recurring: false,
-        generatedFrom: template._id,
-      }));
-
-    if (inserts.length) {
-      const inserted = await Transaction.insertMany(inserts, { ordered: false });
-      created.push(...inserted);
+    let bulkResult = null;
+    if (operations.length) {
+      bulkResult = await Transaction.bulkWrite(operations, { ordered: false });
     }
 
-    const ownMonth = templates
-      .filter((template) => template.month === month)
-      .map((template) => ({ type: template.type, reason: "This is the template's own month." }));
+    const insertedIds = Object.values(bulkResult?.upsertedIds || {});
+    const created = insertedIds.length
+      ? await Transaction.find({ _id: { $in: insertedIds } }).lean()
+      : [];
+    const createdSet = new Set(created.map((item) => String(item.generatedFrom)));
 
-    res.status(201).json({ created, skipped: [...ownMonth, ...skipped] });
+    const skipped = [
+      ...templates
+        .filter((template) => template.month === month)
+        .map((template) => ({ type: template.type, reason: "This is the template's own month." })),
+      ...eligibleTemplates
+        .filter((template) => !createdSet.has(String(template._id)))
+        .map((template) => ({ type: template.type, reason: "Already generated for this month." })),
+    ];
+
+    res.status(201).json({ created, skipped });
   })
-);
-
-// POST /api/transactions — add a new entry
+);// POST /api/transactions — add a new entry
 router.post(
   "/",
   validateBody(transactionSchema),
