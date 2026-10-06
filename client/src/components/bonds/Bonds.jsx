@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
-import { ArrowDownRight, ArrowUpRight, Calendar, Check, ChevronLeft, ChevronRight, Landmark, Pencil, RefreshCw, Search, TrendingUp, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Calendar, Check, ChevronLeft, ChevronRight, Landmark, Pencil, RefreshCw, Search, X } from "lucide-react";
 import {
   Area,
   AreaChart,

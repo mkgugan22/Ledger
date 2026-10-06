@@ -48,6 +48,15 @@ export default function Dashboard({
         right={<MonthPicker value={selectedMonth} onChange={setSelectedMonth} />}
       />
 
+      <DashboardCommandCenter
+        selectedMonth={selectedMonth}
+        transactions={transactions}
+        investments={investments}
+        bonds={bonds}
+        valuations={valuations}
+        monthBudgets={monthBudgets}
+      />
+
       <Row className="g-3 mb-3">
         {cards.map((c, i) => (
           <Col key={c.label} xs={6} lg={3}>
