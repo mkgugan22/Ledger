@@ -2,6 +2,7 @@ import { Router } from "express";
 import Investment from "../models/Investment.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateBody, validateQuery, investmentSchema, investmentUpdateSchema, investmentListQuerySchema } from "../middleware/validate.js";
+import { ensureAutoSipForUser } from "../services/autoSip.js";
 
 const router = Router();
 
@@ -11,6 +12,11 @@ router.get(
   "/",
   validateQuery(investmentListQuerySchema),
   asyncHandler(async (req, res) => {
+    // Safety net for the monthly auto-SIP: if the server was asleep on the 10th,
+    // make sure this user's missed entries exist before they see their list.
+    // Idempotent and cheap once up to date; a failure here must never break the list.
+    await ensureAutoSipForUser(req.userId).catch((err) => console.error("Auto SIP catch-up failed:", err.message));
+
     const filter = { user: req.userId };
     const wantsPagination = req.query.page !== undefined || req.query.limit !== undefined;
     if (!wantsPagination) {
