@@ -184,6 +184,8 @@ export const bondListQuerySchema = z.object({
   limit: limitSchema.optional(),
 }).strict();
 
+const HISTORY_ITEM_MAX = 2000;
+
 export const ledgerAiChatSchema = z.object({
   message: z
     .string()
@@ -191,9 +193,18 @@ export const ledgerAiChatSchema = z.object({
     .min(1, "Write a question for Ledger AI.")
     .max(2000, "Questions can be at most 2,000 characters."),
 
+  // History items are earlier turns the client replays for context, and the
+  // assistant's own answers are often longer than 2,000 characters. Rejecting
+  // them made every follow-up question fail once an answer was long, so they are
+  // trimmed to fit instead (the AiChatLog model also caps each item at 2,000).
+  // The user's actual `message` above keeps its strict limit and clear error.
   history: z.array(z.object({
     role: z.enum(["user", "assistant"]),
-    content: z.string().trim().min(1).max(2000),
+    content: z
+      .string()
+      .trim()
+      .min(1)
+      .transform((text) => (text.length > HISTORY_ITEM_MAX ? `${text.slice(0, HISTORY_ITEM_MAX - 1).trimEnd()}…` : text)),
   }))
     .max(6, "Conversation history can contain at most six messages.")
     .optional()
