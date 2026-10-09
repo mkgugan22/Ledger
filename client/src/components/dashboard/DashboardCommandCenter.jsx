@@ -61,7 +61,9 @@ export default function DashboardCommandCenter({
   const netCashFlow = totals.Income - totals.Needs - totals.Spending - totals.Savings;
   const savingsRate = totals.Income ? (totals.Savings / totals.Income) * 100 : 0;
 
-  const investmentValue = latestValues(investments, "fund", "currentValue");
+  // Auto-SIP rows (autoSipMonth) are ₹-at-cost contributions, not valuations. Skip them
+  // here so a fresh auto entry dated the 10th never overrides a fund's latest Status value.
+  const investmentValue = latestValues(investments.filter((x) => !x.autoSipMonth), "fund", "currentValue");
   const bondValue = latestValues(bonds, "issuer", "currentValue");
   const savingsValue = latestValues(valuations, "instrument", "value");
   const netWorth = investmentValue + bondValue + savingsValue;
