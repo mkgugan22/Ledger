@@ -22,6 +22,7 @@ import {
 import PageHeader from "../shared/PageHeader.jsx";
 import { createBond, editBond, fetchMarketFund, searchMarketFunds } from "../../lib/api.js";
 import { fmtINR } from "../../lib/format.js";
+import { buildFundPositions } from "../../lib/investments.js";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -116,24 +117,13 @@ function buildBondStatus(rows) {
 const HISTORY_PAGE_SIZE = 8;
 
 function buildFundWatchlist(investments) {
-  const byFund = new Map();
-  for (const item of investments) {
-    const key = item.fund;
-    if (!key) continue;
-    if (!byFund.has(key)) byFund.set(key, { fund: key, statusEntry: null, invested: 0 });
-    const bucket = byFund.get(key);
-    if (item.type === "Status") {
-      if (!bucket.statusEntry || item.date >= bucket.statusEntry.date) bucket.statusEntry = item;
-    } else {
-      bucket.invested += Number(item.invested || item.amount || 0);
-    }
-  }
-  return Array.from(byFund.values()).map((b) => ({
-    fund: b.fund,
-    units: b.statusEntry?.units ?? null,
-    invested: b.statusEntry ? Number(b.statusEntry.invested) : b.invested,
-    recordedValue: b.statusEntry ? Number(b.statusEntry.currentValue) : null,
-    asOf: b.statusEntry?.date ?? null,
+  // Same snapshot-plus-later-contributions numbers as the SIP Growth page.
+  return buildFundPositions(investments).map((p) => ({
+    fund: p.fund,
+    units: p.units,
+    invested: p.invested,
+    recordedValue: p.asOf ? p.current : null,
+    asOf: p.asOf,
   }));
 }
 

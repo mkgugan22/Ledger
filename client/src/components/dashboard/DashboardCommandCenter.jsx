@@ -4,6 +4,7 @@ import { Activity, CalendarDays, CreditCard, PiggyBank, ShieldCheck, Target, Tre
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
+import { buildFundPositions, sumFundPositions } from "../../lib/investments.js";
 
 const PERIODS = ["Today", "This Week", "This Month", "Quarter", "Year", "Custom"];
 
@@ -61,9 +62,9 @@ export default function DashboardCommandCenter({
   const netCashFlow = totals.Income - totals.Needs - totals.Spending - totals.Savings;
   const savingsRate = totals.Income ? (totals.Savings / totals.Income) * 100 : 0;
 
-  // Auto-SIP rows (autoSipMonth) are ₹-at-cost contributions, not valuations. Skip them
-  // here so a fresh auto entry dated the 10th never overrides a fund's latest Status value.
-  const investmentValue = latestValues(investments.filter((x) => !x.autoSipMonth), "fund", "currentValue");
+  // Latest saved snapshot per fund PLUS anything added since (manual or auto SIP), so a new
+  // contribution shows up here instead of being ignored or overwriting the fund's value.
+  const investmentValue = useMemo(() => sumFundPositions(buildFundPositions(investments)).current, [investments]);
   const bondValue = latestValues(bonds, "issuer", "currentValue");
   const savingsValue = latestValues(valuations, "instrument", "value");
   const netWorth = investmentValue + bondValue + savingsValue;

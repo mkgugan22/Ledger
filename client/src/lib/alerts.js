@@ -1,10 +1,13 @@
-export function buildAlerts({ month, transactions, budgets, investments }) {
+export function buildAlerts({ month, transactions, budgets, investments = [] }) {
   const alerts = [];
   budgets.filter((b) => b.month === month).forEach((budget) => {
     const actual = transactions.filter((t) => t.month === month && t.mode === budget.mode && t.type === budget.type).reduce((sum, t) => sum + Number(t.amount || 0), 0);
     if (actual >= Number(budget.plannedAmount)) alerts.push({ kind: "warning", text: `${budget.type} is ${actual > budget.plannedAmount ? "over" : "at"} its ₹${budget.plannedAmount.toLocaleString("en-IN")} budget.` });
   });
-  if (!transactions.some((t) => t.month === month)) alerts.push({ kind: "info", text: `No entries have been recorded for ${month} yet.` });
+  // An investment you added yourself (SIP, top-up or valuation refresh) is an entry too. Rows the
+  // monthly auto-SIP job created don't count, so the reminder still fires if you've logged nothing.
+  const hasInvestmentEntry = investments.some((i) => !i.autoSipMonth && String(i.date || "").startsWith(month));
+  if (!transactions.some((t) => t.month === month) && !hasInvestmentEntry) alerts.push({ kind: "info", text: `No entries have been recorded for ${month} yet.` });
   const recurringTemplates = transactions.filter((t) => t.recurring && t.month < month);
   const generatedForMonth = new Set(transactions.filter((t) => t.month === month && t.generatedFrom).map((t) => String(t.generatedFrom)));
   const pendingRecurring = recurringTemplates.filter((t) => !generatedForMonth.has(String(t.id || t._id)));

@@ -36,17 +36,20 @@ function totalForMonth(rows, month) {
   };
 }
 
-function summarizeInvestments(rows) {
+// Same rule as client/src/lib/investments.js, so Ledger AI quotes the same numbers the app shows:
+// the latest Status snapshot is the baseline, and money added AFTER the snapshot's date
+// (manual or auto SIP) is added on top at cost. A contribution dated on the snapshot's own
+// date is treated as already included in it.
+export function summarizeInvestments(rows) {
   const byFund = new Map();
 
   for (const row of rows) {
     const current = byFund.get(row.fund) || {
       fund: row.fund,
-      invested: 0,
-      currentValue: 0,
       monthly: 0,
       assetClass: row.assetClass || "Equity",
       status: null,
+      contributions: [],
     };
 
     if (row.type === "Status") {
@@ -54,8 +57,7 @@ function summarizeInvestments(rows) {
         current.status = row;
       }
     } else {
-      current.invested += Number(row.invested || 0);
-      current.currentValue += Number(row.currentValue || 0);
+      current.contributions.push(row);
       current.monthly += Number(row.monthly || 0);
     }
 
@@ -63,13 +65,19 @@ function summarizeInvestments(rows) {
   }
 
   const funds = [...byFund.values()].map((fund) => {
-    const source = fund.status || fund;
-    const invested = round(source.invested);
-    const currentValue = round(source.currentValue);
+    const status = fund.status;
+    const counted = status
+      ? fund.contributions.filter((row) => String(row.date || "") > String(status.date || ""))
+      : fund.contributions;
+    const addedInvested = counted.reduce((sum, row) => sum + Number(row.invested || 0), 0);
+    const addedValue = counted.reduce((sum, row) => sum + Number(row.currentValue || 0), 0);
+
+    const invested = round((status ? Number(status.invested || 0) : 0) + addedInvested);
+    const currentValue = round((status ? Number(status.currentValue || 0) : 0) + addedValue);
 
     return {
       fund: fund.fund,
-      assetClass: source.assetClass || fund.assetClass,
+      assetClass: status?.assetClass || fund.assetClass,
       invested,
       currentValue,
       gain: round(currentValue - invested),
@@ -77,7 +85,7 @@ function summarizeInvestments(rows) {
         ? round(((currentValue - invested) / invested) * 100)
         : null,
       monthly: round(fund.monthly),
-      xirr: source.xirr ?? null,
+      xirr: status?.xirr ?? null,
     };
   });
 
