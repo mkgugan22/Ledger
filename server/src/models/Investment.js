@@ -17,9 +17,20 @@ const investmentSchema = new mongoose.Schema({
   source: { type: String, default: "Manual entry" },
   assetClass: { type: String, enum: ["Equity", "Debt", "Gold", "International", "Other"], default: "Equity" },
   benchmarkReturn: { type: Number },
+  // Set ONLY on rows created by the monthly auto-SIP job (services/autoSip.js),
+  // e.g. "2026-10". Manual entries never have it, and the API's zod schemas do
+  // not accept it from clients. Together with the partial unique index below it
+  // guarantees one auto entry per user + fund + month.
+  autoSipMonth: { type: String },
 }, { timestamps: true });
 
 investmentSchema.index({ user: 1, fund: 1, date: 1 });
 investmentSchema.index({ user: 1, type: 1, date: 1 });
+// Partial index: only rows that actually carry autoSipMonth are indexed, so
+// every existing/manual investment row is completely unaffected by this.
+investmentSchema.index(
+  { user: 1, fund: 1, autoSipMonth: 1 },
+  { unique: true, partialFilterExpression: { autoSipMonth: { $type: "string" } } }
+);
 
 export default mongoose.model("Investment", investmentSchema);

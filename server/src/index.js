@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { connectDB } from "./db.js";
 import { validateEnv } from "./validateEnv.js";
 import { createApp } from "./app.js";
+import { startAutoSipScheduler } from "./services/autoSip.js";
 import mongoose from "mongoose";
 
 dotenv.config();
@@ -17,6 +18,10 @@ const server = await connectDB()
     process.exit(1);
   });
 
+// Monthly auto-SIP (10th of each month, India time). Runs once now to catch up
+// anything missed while the server was asleep, then hourly. See services/autoSip.js.
+const stopAutoSip = startAutoSipScheduler();
+
 // Drain in-flight HTTP requests before closing MongoDB. This is important
 // during Render restarts/deploys: active users get a clean connection close
 // instead of a sudden socket reset halfway through a request.
@@ -25,6 +30,7 @@ const shutdown = (signal) => {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`${signal} received; draining Ledger API connections...`);
+  stopAutoSip();
 
   server.close(async () => {
     try {
