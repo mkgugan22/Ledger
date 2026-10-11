@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Check, ChevronLeft, ChevronRight, Pencil,
 import PageHeader from "../shared/PageHeader.jsx";
 import { createInvestment, editInvestment } from "../../lib/api.js";
 import { fmtINR } from "../../lib/format.js";
+import { buildFundPositions } from "../../lib/investments.js";
 
 const projection = (monthly, value, annualRate, years) => {
   const months = years * 12;
@@ -13,46 +14,6 @@ const projection = (monthly, value, annualRate, years) => {
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
-
-// For each fund, the latest "Status" entry (by date) is the authoritative
-// current snapshot (invested-to-date, valuation, units, XIRR). Funds with no
-// Status entry yet fall back to summing their SIP/Additional rows, same as before.
-function buildFundStatus(rows) {
-  const byFund = new Map();
-  for (const item of rows) {
-    const key = item.fund;
-    if (!byFund.has(key)) byFund.set(key, { fund: key, statusEntry: null, invested: 0, current: 0, monthly: 0, assetClass: item.assetClass || "Equity" });
-    const bucket = byFund.get(key);
-    if (item.type === "Status") {
-      if (!bucket.statusEntry || item.date >= bucket.statusEntry.date) bucket.statusEntry = item;
-    } else {
-      bucket.invested += Number(item.invested || item.amount || 0);
-      bucket.current += Number(item.currentValue || item.current || item.amount || 0);
-      bucket.monthly += Number(item.monthly || 0);
-    }
-  }
-  return Array.from(byFund.values()).map((bucket) => {
-    const s = bucket.statusEntry;
-    const invested = s ? Number(s.invested) : bucket.invested;
-    const current = s ? Number(s.currentValue) : bucket.current;
-    const gain = current - invested;
-    const absReturn = invested ? (gain / invested) * 100 : 0;
-    return {
-      fund: bucket.fund,
-      invested,
-      current,
-      units: s?.units ?? null,
-      xirr: s?.xirr ?? null,
-      gain,
-      absReturn,
-      monthly: bucket.monthly,
-      asOf: s?.date ?? null,
-      statusEntryId: s?.id ?? s?._id ?? null,
-      assetClass: s?.assetClass || bucket.assetClass,
-      benchmarkReturn: s?.benchmarkReturn ?? null,
-    };
-  });
-}
 
 const HISTORY_PAGE_SIZE = 8;
 
@@ -70,7 +31,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
   const [savingHistoryEdit, setSavingHistoryEdit] = useState(false);
   const rows = investments;
 
-  const fundStatus = useMemo(() => buildFundStatus(rows), [rows]);
+  const fundStatus = useMemo(() => buildFundPositions(rows), [rows]);
 
   const totals = useMemo(
     () => fundStatus.reduce((acc, f) => ({ invested: acc.invested + f.invested, current: acc.current + f.current }), { invested: 0, current: 0 }),
@@ -253,7 +214,7 @@ export default function SipGrowth({ investments = [], onInvestmentAdded, onInves
                   const isEditing = editingFund === f.fund;
                   return (
                     <tr key={f.fund}>
-                      <td><div className="fw-semibold">{f.fund}</div>{f.asOf && <small className="text-secondary">as of {f.asOf}</small>}</td>
+                      <td><div className="fw-semibold">{f.fund}</div>{f.asOf && <small className="text-secondary">as of {f.asOf}{f.addedSince > 0 ? ` + ₹${fmtINR(f.addedSince)} added since` : ""}</small>}</td>
                       {isEditing ? (
                         <>
                           <td className="text-end"><Form.Control size="sm" type="number" min="0" step="0.01" value={editForm.invested} onChange={(e) => setEditForm({ ...editForm, invested: e.target.value })} className="text-end" style={{ minWidth: 100 }} /></td>
