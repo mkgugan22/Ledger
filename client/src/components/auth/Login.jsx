@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Form, Alert } from "react-bootstrap";
 import { Landmark, LockKeyhole } from "lucide-react";
-import { login, register } from "../../lib/api.js";
+import { login, register, warmApi } from "../../lib/api.js";
 import LedgerHeroBackground from "../../lib/motion/LedgerHeroBackground.jsx";
 
 export default function Login({ onAuthenticated }) {
+  useEffect(() => { warmApi().catch(() => {}); }, []);
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

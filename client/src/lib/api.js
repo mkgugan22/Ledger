@@ -108,6 +108,7 @@ export const fetchValuations = async () => collection(await request("/valuations
 export const upsertValuation = async (data) => withId(await request("/valuations", { method: "POST", body: JSON.stringify(data) }));
 export const removeValuation = (id) => request(`/valuations/${id}`, { method: "DELETE" });
 
+export const warmApi = () => request("/health");
 export const login = (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) });
 export const register = (data) => request("/auth/register", { method: "POST", body: JSON.stringify(data) });
 export const fetchSession = () => request("/auth/me");

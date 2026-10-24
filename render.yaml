@@ -12,7 +12,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CLIENT_ORIGIN
-        value: https://ledger007.netlify.app
+        value: https://ledger007.netlify.app,https://ledger-875b.onrender.com
       - key: NODE_ENV
         value: production
     # --- Scaling for higher concurrent traffic -------------------------

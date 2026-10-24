@@ -113,12 +113,20 @@ export default function App() {
   const alerts = useMemo(() => buildAlerts({ month: selectedMonth, transactions, budgets, investments }), [selectedMonth, transactions, budgets, investments]);
 
   const addTransaction = useCallback(async (entry, receipt) => {
+    let doc;
     try {
-      const doc = await createTransaction(entry);
+      doc = await createTransaction(entry);
       setTransactions((prev) => [...prev, doc]);
-      if (receipt) await uploadTransactionReceipt(doc.id, receipt);
     } catch (err) {
       setApiError(`Couldn't save that entry (${err.message}).`);
+      return;
+    }
+    if (receipt) {
+      try {
+        await uploadTransactionReceipt(doc.id, receipt);
+      } catch (err) {
+        setApiError(`Entry saved, receipt upload failed (${err.message}).`);
+      }
     }
   }, []);
   const updateTransaction = useCallback(async (id, patch) => { try { const doc = await editTransaction(id, patch); setTransactions((prev) => prev.map((t) => (t.id === id ? doc : t))); } catch (err) { setApiError(`Couldn't update that entry (${err.message}).`); } }, []);

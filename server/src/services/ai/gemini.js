@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createConcurrencyLimiter } from "../../lib/concurrency.js";
 
 function httpError(message, status, providerStatus) {
   const error = new Error(message);
@@ -322,13 +323,14 @@ async function callGeminiStream({
     const url =
       `https://generativelanguage.googleapis.com/v1beta/models/` +
       `${encodeURIComponent(model)}:streamGenerateContent` +
-      `?alt=sse&key=${encodeURIComponent(apiKey)}`;
+      `?alt=sse`;
 
     const response = await fetch(url, {
       method: "POST",
 
       headers: {
         "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
       },
 
       signal: controller.signal,
@@ -506,7 +508,7 @@ async function callGeminiStream({
  * ============================================================
  */
 
-export async function askGeminiStream(
+async function askGeminiStreamInternal(
   { message, history = [], snapshot },
   onChunk
 ) {
@@ -566,6 +568,12 @@ export async function askGeminiStream(
       onChunk: trackedOnChunk,
     });
   }
+}
+
+const runGeminiRequest = createConcurrencyLimiter({ limit: 4, maxQueue: 12 });
+
+export function askGeminiStream(args, onChunk) {
+  return runGeminiRequest(() => askGeminiStreamInternal(args, onChunk));
 }
 
 /*

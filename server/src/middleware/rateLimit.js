@@ -33,6 +33,7 @@ export const aiRateLimit = rateLimit({
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.userId || ipKeyGenerator(req.ip),
   message: {
     error: "Too many Ledger AI requests. Please try again in a few minutes.",
   },
