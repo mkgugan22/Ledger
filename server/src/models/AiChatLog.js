@@ -47,6 +47,9 @@ const aiChatLogSchema = new mongoose.Schema(
 // against this exact data, recently?" — the quick-response path.
 aiChatLogSchema.index({ user: 1, normalizedMessage: 1, snapshotHash: 1, createdAt: -1 });
 
+// Keep chat logs bounded while preserving the existing 40-exchange history window.
+aiChatLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 // General "this user's chat history, most recent first" access pattern.
 aiChatLogSchema.index({ user: 1, createdAt: -1 });
 

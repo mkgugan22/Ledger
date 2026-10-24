@@ -73,6 +73,10 @@ export function createApp() {
     next();
   });
   app.use(cookieParser());
+  app.use("/api", (req, res, next) => {
+    if (req.method === "GET") res.setHeader("Cache-Control", "private, no-cache");
+    next();
+  });
 
   app.get("/api/health", (req, res) => res.json({ ok: true }));
   app.get("/api/ready", (req, res) => {

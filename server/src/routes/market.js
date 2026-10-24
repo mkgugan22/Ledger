@@ -70,25 +70,20 @@ const schemeInFlight = new Map(); // schemeCode -> Promise
 async function getScheme(schemeCode) {
   const cached = schemeCache.get(schemeCode);
   if (cached && Date.now() - cached.fetchedAt < SCHEME_TTL_MS) return cached.data;
-
   const pending = schemeInFlight.get(schemeCode);
   if (pending) return pending;
-
-  const fetchPromise = upstream(`/${encodeURIComponent(schemeCode)}`)
+  const fetchPromise = upstream(`/${encodeURIComponent(schemeCode)}`, { retries: 1 })
     .then((data) => {
-      if (schemeCache.size >= SCHEME_CACHE_MAX_ENTRIES && !schemeCache.has(schemeCode)) {
-        const oldestKey = schemeCache.keys().next().value;
-        schemeCache.delete(oldestKey);
-      }
-      schemeCache.set(schemeCode, { data, fetchedAt: Date.now() });
-      return data;
+      const trimmed = { meta: data.meta, data: data.data?.slice(0, 365) || [] };
+      if (schemeCache.size >= SCHEME_CACHE_MAX_ENTRIES && !schemeCache.has(schemeCode)) schemeCache.delete(schemeCache.keys().next().value);
+      schemeCache.set(schemeCode, { data: trimmed, fetchedAt: Date.now() });
+      return trimmed;
     })
+    .catch((err) => { if (cached) return cached.data; throw err; })
     .finally(() => { schemeInFlight.delete(schemeCode); });
-
   schemeInFlight.set(schemeCode, fetchPromise);
   return fetchPromise;
 }
-
 router.get("/search", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
@@ -103,8 +98,9 @@ router.get("/search", async (req, res) => {
 
 router.get("/:schemeCode", async (req, res) => {
   try {
+    if (!/^\d+$/.test(req.params.schemeCode)) return res.status(400).json({ error: "Invalid scheme code." });
     const data = await getScheme(req.params.schemeCode);
-    res.json({ schemeCode: req.params.schemeCode, meta: data.meta, data: data.data?.slice(0, 365) || [] });
+    res.json({ schemeCode: req.params.schemeCode, ...data });
   } catch (err) {
     console.error("[market/:schemeCode]", req.params.schemeCode, err);
     res.status(502).json({ error: "Market data is temporarily unavailable. Please try again in a moment." });

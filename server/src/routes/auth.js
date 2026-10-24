@@ -4,7 +4,7 @@ import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
 import Valuation from "../models/Valuation.js";
 import Investment from "../models/Investment.js";
-import { issueSession, requireAuth } from "../middleware/auth.js";
+import { issueSession, requireAuth, clearSession } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
 import { validateBody, registerSchema, loginSchema } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
@@ -99,7 +99,7 @@ router.get(
 );
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("ledger_session");
+  clearSession(res);
   res.json({ ok: true });
 });
 
