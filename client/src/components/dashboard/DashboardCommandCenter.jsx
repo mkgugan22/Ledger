@@ -3,10 +3,10 @@ import { Card, Row, Col, ButtonGroup, Button, ProgressBar, Badge } from "react-b
 import { Activity, CalendarDays, CreditCard, PiggyBank, ShieldCheck, Target, TrendingUp, Wallet } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { MODE_COLOR } from "../../lib/constants.js";
-import { fmtINR, monthLabel } from "../../lib/format.js";
+import { currentDate, fmtINR, monthLabel } from "../../lib/format.js";
 import { buildFundPositions, sumFundPositions } from "../../lib/investments.js";
-
-const PERIODS = ["Today", "This Week", "This Month", "Quarter", "Year", "Custom"];
+import { debtHealthScore, summarizeBills, totalDebtOutstanding } from "../../lib/obligations.js";
+import { PERIODS, filterByPeriod, periodLabel } from "../../lib/periods.js";
 
 const money = (v) => `₹${fmtINR(Math.round(Number(v) || 0))}`;
 
@@ -34,40 +34,41 @@ export default function DashboardCommandCenter({
   bonds = [],
   valuations = [],
   monthBudgets = [],
+  debts = [],
+  bills = [],
 }) {
   const [period, setPeriod] = useState("This Month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const today = currentDate();
 
-  const periodTransactions = useMemo(() => {
-    if (period === "This Month") return transactions.filter((x) => x.month === selectedMonth);
-    if (period === "Year") return transactions.filter((x) => x.month?.startsWith(selectedMonth.slice(0, 4)));
-    if (period === "Quarter") {
-      const [year, m] = selectedMonth.split("-").map(Number);
-      const qStart = Math.floor((m - 1) / 3) * 3 + 1;
-      const allowed = new Set([0, 1, 2].map((i) => `${year}-${String(qStart + i).padStart(2, "0")}`));
-      return transactions.filter((x) => allowed.has(x.month));
-    }
-    if (period === "Custom") {
-      if (!customFrom || !customTo) return transactions.filter((x) => x.month === selectedMonth);
-      return transactions.filter((x) => x.month >= customFrom && x.month <= customTo);
-    }
-    // The current transaction model is month-based. Until transaction dates are
-    // introduced, Today/This Week intentionally fall back to the selected month
-    // rather than inventing precision that the stored data does not contain.
-    return transactions.filter((x) => x.month === selectedMonth);
-  }, [transactions, selectedMonth, period, customFrom, customTo]);
+  // Today / This Week use each entry's own date; the other periods are the
+  // same month-based filters as before. `ratioRows` keeps the health score and
+  // budget usage on the full month when a single day or week is selected.
+  const { rows: periodTransactions, ratioRows, note: periodNote } = useMemo(
+    () => filterByPeriod(transactions, { period, selectedMonth, customFrom, customTo, today }),
+    [transactions, selectedMonth, period, customFrom, customTo, today],
+  );
+  const shortPeriod = ratioRows !== periodTransactions;
 
   const totals = useMemo(() => sumByMode(periodTransactions), [periodTransactions]);
   const netCashFlow = totals.Income - totals.Needs - totals.Spending - totals.Savings;
   const savingsRate = totals.Income ? (totals.Savings / totals.Income) * 100 : 0;
+
+  const healthTotals = useMemo(() => (shortPeriod ? sumByMode(ratioRows) : totals), [shortPeriod, ratioRows, totals]);
+  const healthSavingsRate = healthTotals.Income ? (healthTotals.Savings / healthTotals.Income) * 100 : 0;
+  const healthCashFlow = healthTotals.Income - healthTotals.Needs - healthTotals.Spending - healthTotals.Savings;
 
   // Latest saved snapshot per fund PLUS anything added since (manual or auto SIP), so a new
   // contribution shows up here instead of being ignored or overwriting the fund's value.
   const investmentValue = useMemo(() => sumFundPositions(buildFundPositions(investments)).current, [investments]);
   const bondValue = latestValues(bonds, "issuer", "currentValue");
   const savingsValue = latestValues(valuations, "instrument", "value");
-  const netWorth = investmentValue + bondValue + savingsValue;
+  const totalDebt = useMemo(() => totalDebtOutstanding(debts), [debts]);
+  const netWorth = investmentValue + bondValue + savingsValue - totalDebt;
+
+  const billSummary = useMemo(() => summarizeBills(bills, today), [bills, today]);
+  const billsNeedingAttention = billSummary.overdue.length + billSummary.dueSoon.length;
 
   const emergencyCurrent = useMemo(() => {
     const emergency = valuations.filter((x) => /emergency/i.test(x.instrument || ""));
@@ -86,16 +87,21 @@ export default function DashboardCommandCenter({
   }, [transactions]);
 
   const budgetPlanned = monthBudgets.reduce((s, x) => s + (Number(x.plannedAmount) || 0), 0);
-  const budgetActual = periodTransactions.reduce((s, x) => s + (x.mode === "Income" ? 0 : Number(x.amount) || 0), 0);
+  const budgetActual = ratioRows.reduce((s, x) => s + (x.mode === "Income" ? 0 : Number(x.amount) || 0), 0);
   const budgetUsage = budgetPlanned ? Math.min(100, (budgetActual / budgetPlanned) * 100) : 0;
 
-  const healthScore = Math.round(Math.min(100, Math.max(0,
-    Math.min(100, savingsRate * 2) * 0.3 +
+  // Debt only enters the score when there is something to score (an active debt
+  // or an overdue bill), so the score is unchanged for everyone else.
+  const monthIncome = useMemo(() => sumByMode(transactions.filter((x) => x.month === selectedMonth)).Income, [transactions, selectedMonth]);
+  const debtScore = debtHealthScore({ debts, monthlyIncome: monthIncome, overdueBillCount: billSummary.overdue.length });
+
+  const baseHealth =
+    Math.min(100, healthSavingsRate * 2) * 0.3 +
     (emergencyTarget ? Math.min(100, emergencyCurrent / emergencyTarget * 100) : 50) * 0.2 +
     (budgetPlanned ? Math.max(0, 100 - Math.max(0, budgetUsage - 80) * 5) : 70) * 0.2 +
     (investmentValue > 0 ? 90 : 40) * 0.15 +
-    (netCashFlow >= 0 ? 100 : 30) * 0.15
-  )));
+    (healthCashFlow >= 0 ? 100 : 30) * 0.15;
+  const healthScore = Math.round(Math.min(100, Math.max(0, debtScore === null ? baseHealth : baseHealth * 0.85 + debtScore * 0.15)));
 
   const monthlySeries = useMemo(() => {
     const months = [...new Set(transactions.map((x) => x.month).filter(Boolean))].sort().slice(-12);
@@ -146,11 +152,11 @@ export default function DashboardCommandCenter({
     ["Net Cash Flow", money(netCashFlow), Activity, netCashFlow >= 0 ? "Income" : "Spending"],
     ["Savings Rate", `${savingsRate.toFixed(1)}%`, PiggyBank, "Savings"],
     ["Investment Value", money(investmentValue), TrendingUp, "Income"],
-    ["Net Worth", money(netWorth), Wallet, "Income"],
+    ["Net Worth", money(netWorth), Wallet, netWorth < 0 ? "Spending" : "Income"],
     ["Emergency Fund", money(emergencyCurrent), ShieldCheck, emergencyCurrent >= emergencyTarget && emergencyTarget ? "Income" : "Needs"],
     ["Budget Usage", `${budgetUsage.toFixed(0)}%`, Target, budgetUsage > 100 ? "Spending" : "Needs"],
-    ["Debt", "₹0", CreditCard, "Needs"],
-    ["Upcoming Bills", "0", CalendarDays, "Needs"],
+    ["Debt", money(totalDebt), CreditCard, "Needs"],
+    ["Upcoming Bills", String(billsNeedingAttention), CalendarDays, billSummary.overdue.length ? "Spending" : "Needs"],
   ];
 
   return (
@@ -158,7 +164,11 @@ export default function DashboardCommandCenter({
       <Card className="lg-card mb-3">
         <Card.Body className="p-3 p-lg-4">
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div><div className="font-serif fs-5">Financial Command Center</div><div className="small text-secondary">{period === "This Month" ? monthLabel(selectedMonth) : period}</div></div>
+            <div>
+              <div className="font-serif fs-5">Financial Command Center</div>
+              <div className="small text-secondary">{periodLabel(period, { selectedMonth, today, monthLabel })}</div>
+              {periodNote && <div className="small text-secondary fst-italic">{periodNote}</div>}
+            </div>
             <ButtonGroup size="sm" className="flex-wrap">
               {PERIODS.map((p) => <Button key={p} variant={period === p ? "dark" : "outline-secondary"} onClick={() => setPeriod(p)}>{p}</Button>)}
             </ButtonGroup>
@@ -172,7 +182,7 @@ export default function DashboardCommandCenter({
       </Row>
 
       <Row className="g-3 mb-3">
-        <Col lg={5}><Card className="lg-card h-100"><Card.Body><div className="d-flex justify-content-between align-items-center mb-3"><div><div className="font-serif fs-5">Financial Health</div><div className="small text-secondary">Based only on data currently tracked in Ledger.</div></div><Badge bg={healthScore >= 75 ? "success" : healthScore >= 50 ? "warning" : "danger"}>{healthScore}/100</Badge></div><ProgressBar now={healthScore} style={{ height: 10 }} /><div className="d-flex justify-content-between small text-secondary mt-2"><span>Savings {savingsRate.toFixed(0)}%</span><span>Budget {budgetUsage.toFixed(0)}%</span><span>Emergency {emergencyTarget ? Math.min(100, emergencyCurrent / emergencyTarget * 100).toFixed(0) : "—"}%</span></div></Card.Body></Card></Col>
+        <Col lg={5}><Card className="lg-card h-100"><Card.Body><div className="d-flex justify-content-between align-items-center mb-3"><div><div className="font-serif fs-5">Financial Health</div><div className="small text-secondary">Based only on data currently tracked in Ledger.{shortPeriod ? " Uses the full month while Today or This Week is selected." : ""}</div></div><Badge bg={healthScore >= 75 ? "success" : healthScore >= 50 ? "warning" : "danger"}>{healthScore}/100</Badge></div><ProgressBar now={healthScore} style={{ height: 10 }} /><div className="d-flex justify-content-between small text-secondary mt-2"><span>Savings {healthSavingsRate.toFixed(0)}%</span><span>Budget {budgetUsage.toFixed(0)}%</span><span>Emergency {emergencyTarget ? Math.min(100, emergencyCurrent / emergencyTarget * 100).toFixed(0) : "—"}%</span>{debtScore !== null && <span>Debt {Math.round(debtScore)}%</span>}</div></Card.Body></Card></Col>
         <Col lg={7}><Card className="lg-card h-100"><Card.Body><div className="font-serif fs-5 mb-3">Smart insights</div><div className="d-grid gap-2">{insights.map((x, i) => <div className="border rounded p-3 small" key={i}>{x}</div>)}</div></Card.Body></Card></Col>
       </Row>
 

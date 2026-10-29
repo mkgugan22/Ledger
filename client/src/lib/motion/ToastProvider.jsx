@@ -14,19 +14,29 @@ const COLORS = { success: "#2e7d32", error: "#c62828", info: "#0d6efd" };
 //   import { useToast } from "../../lib/motion/toastContext.js";
 //   const showToast = useToast();
 //   showToast("Entry saved", "success");
+//
+// Optional 4th argument adds a button to the toast (used for "Undo"):
+//   showToast("Entry deleted", "info", 5000, { action: { label: "Undo", onClick: restore } });
+// Clicking the button runs `onClick` and dismisses the toast.
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((message, type = "info", duration = 3000) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+  const dismiss = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const showToast = useCallback((message, type = "info", duration = 3000, options = {}) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type, action: options?.action || null }]);
+    setTimeout(() => dismiss(id), duration);
+    return id;
+  }, [dismiss]);
 
   return (
     <ToastContext.Provider value={showToast}>
       {children}
       <div
+        aria-live="polite"
         style={{
           position: "fixed",
           bottom: 20,
@@ -66,6 +76,27 @@ export function ToastProvider({ children }) {
               >
                 <Icon size={16} color={COLORS[t.type] || COLORS.info} />
                 <span>{t.message}</span>
+                {t.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      t.action.onClick?.();
+                      dismiss(t.id);
+                    }}
+                    style={{
+                      marginLeft: "auto",
+                      background: "none",
+                      border: "none",
+                      padding: "2px 6px",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      color: "var(--lg-brass, #b8912f)",
+                    }}
+                  >
+                    {t.action.label}
+                  </button>
+                )}
               </motion.div>
             );
           })}

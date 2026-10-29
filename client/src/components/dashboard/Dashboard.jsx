@@ -32,6 +32,8 @@ export default function Dashboard({
   bonds = [],
   valuations = [],
   monthBudgets = [],
+  debts = [],
+  bills = [],
 }) {
   const cards = [
     { label: "Income", value: totals.Income, icon: TrendingUp, color: MODE_COLOR.Income },
@@ -55,6 +57,8 @@ export default function Dashboard({
         bonds={bonds}
         valuations={valuations}
         monthBudgets={monthBudgets}
+        debts={debts}
+        bills={bills}
       />
 
       <Row className="g-3 mb-3">

@@ -140,6 +140,11 @@ export const createBill = async (data) => withId(await request("/bills", { metho
 export const editBill = async (id, data) => withId(await request(`/bills/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 export const removeBill = (id) => request(`/bills/${id}`, { method: "DELETE" });
 
+// Used only when the page is closing while a deletion is still inside its
+// "Undo" window: `keepalive` lets the browser finish the request after the page
+// is gone. Failures are ignored — the record simply stays, which is the safe outcome.
+export const deleteInBackground = (path) => request(path, { method: "DELETE", keepalive: true }).catch(() => {});
+
 const STREAM_ERROR_MARKER = "\u0000LEDGER_AI_STREAM_ERROR\u0000";
 
 export function chatWithLedgerAI({ message, history }, onChunk) {
