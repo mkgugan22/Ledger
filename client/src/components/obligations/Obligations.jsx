@@ -2,25 +2,39 @@ import { useMemo, useState } from "react";
 import { Card, Row, Col, Form, Button, Table, Badge } from "react-bootstrap";
 import { CreditCard, CalendarDays, PlusCircle, CheckCircle2, Trash2 } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
-import { fmtINR } from "../../lib/format.js";
+import PaymentModal from "./PaymentModal.jsx";
+import { currentDate, fmtINR } from "../../lib/format.js";
+import { classifyDue, isUnpaid } from "../../lib/obligations.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
+function DueBadge({ dueDate, today }) {
+  const { state, days } = classifyDue(dueDate, today);
+  if (state === "overdue") return <Badge bg="danger" className="ms-2">Overdue {-days}d</Badge>;
+  if (state === "soon") return <Badge bg="warning" text="dark" className="ms-2">{days === 0 ? "Due today" : `Due in ${days}d`}</Badge>;
+  return null;
+}
 
 export default function Obligations({
   debts = [],
   bills = [],
+  transactions = [],
   addDebt,
   updateDebt,
   deleteDebt,
   addBill,
   updateBill,
   deleteBill,
+  addTransaction,
 }) {
+  const today = currentDate();
   const [debt, setDebt] = useState({ name: "", debtType: "Loan", originalAmount: "", outstandingAmount: "", interestRate: "", minimumPayment: "", dueDate: "" });
-  const [bill, setBill] = useState({ name: "", amount: "", dueDate: today(), category: "General", recurring: false });
+  const [bill, setBill] = useState({ name: "", amount: "", dueDate: today, category: "General", recurring: false });
+  const [payingBill, setPayingBill] = useState(null);
+  const [payingDebt, setPayingDebt] = useState(null);
 
   const activeDebt = useMemo(() => debts.filter((x) => x.status !== "paid"), [debts]);
-  const upcomingBills = useMemo(() => bills.filter((x) => x.status !== "paid" && x.dueDate >= today()).sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [bills]);
+  // Unpaid bills, soonest first. Overdue bills stay in the list (they used to
+  // drop out of sight once their date passed) so they can still be paid.
+  const upcomingBills = useMemo(() => bills.filter(isUnpaid).sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate))), [bills]);
 
   async function submitDebt(e) {
     e.preventDefault();
@@ -39,7 +53,7 @@ export default function Obligations({
     e.preventDefault();
     if (!bill.name || bill.amount === "" || !bill.dueDate || !addBill) return;
     await addBill({ ...bill, amount: Number(bill.amount) });
-    setBill({ name: "", amount: "", dueDate: today(), category: "General", recurring: false });
+    setBill({ name: "", amount: "", dueDate: currentDate(), category: "General", recurring: false });
   }
 
   return (
@@ -82,13 +96,36 @@ export default function Obligations({
 
       <Card className="lg-card mb-3"><Card.Body>
         <div className="d-flex justify-content-between align-items-center mb-3"><div className="font-serif fs-5">Active debts</div><Badge bg="secondary">{activeDebt.length}</Badge></div>
-        {activeDebt.length ? <div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Name</th><th>Type</th><th className="text-end">Outstanding</th><th className="text-end">Min payment</th><th>Due</th><th></th></tr></thead><tbody>{activeDebt.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.debtType}</td><td className="text-end font-mono">₹{fmtINR(item.outstandingAmount)}</td><td className="text-end font-mono">₹{fmtINR(item.minimumPayment)}</td><td>{item.dueDate || "—"}</td><td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => updateDebt?.(item.id, { status: "paid" })}><CheckCircle2 size={14} /></Button> <Button size="sm" variant="outline-danger" onClick={() => deleteDebt?.(item.id)}><Trash2 size={14} /></Button></td></tr>)}</tbody></Table></div> : <div className="text-secondary small">No active debts recorded.</div>}
+        {activeDebt.length ? <div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Name</th><th>Type</th><th className="text-end">Outstanding</th><th className="text-end">Min payment</th><th>Due</th><th></th></tr></thead><tbody>{activeDebt.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.debtType}</td><td className="text-end font-mono">₹{fmtINR(item.outstandingAmount)}</td><td className="text-end font-mono">₹{fmtINR(item.minimumPayment)}</td><td>{item.dueDate || "—"}</td><td className="text-end"><Button size="sm" variant="outline-secondary" title="Record a payment" aria-label={`Record a payment on ${item.name}`} onClick={() => setPayingDebt(item)} disabled={!updateDebt}><CheckCircle2 size={14} /></Button> <Button size="sm" variant="outline-danger" title="Delete" aria-label={`Delete ${item.name}`} onClick={() => deleteDebt?.(item.id)}><Trash2 size={14} /></Button></td></tr>)}</tbody></Table></div> : <div className="text-secondary small">No active debts recorded.</div>}
       </Card.Body></Card>
 
       <Card className="lg-card"><Card.Body>
         <div className="d-flex justify-content-between align-items-center mb-3"><div className="font-serif fs-5">Upcoming bills</div><Badge bg="secondary">{upcomingBills.length}</Badge></div>
-        {upcomingBills.length ? <div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Bill</th><th>Category</th><th className="text-end">Amount</th><th>Due</th><th></th></tr></thead><tbody>{upcomingBills.slice(0, 20).map((item) => <tr key={item.id}><td>{item.name}{item.recurring && <small className="text-secondary ms-2">monthly</small>}</td><td>{item.category}</td><td className="text-end font-mono">₹{fmtINR(item.amount)}</td><td>{item.dueDate}</td><td className="text-end"><Button size="sm" variant="outline-secondary" onClick={() => updateBill?.(item.id, { status: "paid" })}><CheckCircle2 size={14} /></Button> <Button size="sm" variant="outline-danger" onClick={() => deleteBill?.(item.id)}><Trash2 size={14} /></Button></td></tr>)}</tbody></Table></div> : <div className="text-secondary small">No upcoming bills recorded.</div>}
+        {upcomingBills.length ? <div className="table-responsive"><Table className="lg-table mb-0"><thead><tr><th>Bill</th><th>Category</th><th className="text-end">Amount</th><th>Due</th><th></th></tr></thead><tbody>{upcomingBills.slice(0, 20).map((item) => <tr key={item.id}><td>{item.name}{item.recurring && <small className="text-secondary ms-2">monthly</small>}</td><td>{item.category}</td><td className="text-end font-mono">₹{fmtINR(item.amount)}</td><td>{item.dueDate}<DueBadge dueDate={item.dueDate} today={today} /></td><td className="text-end"><Button size="sm" variant="outline-secondary" title="Mark as paid" aria-label={`Mark ${item.name} as paid`} onClick={() => setPayingBill(item)} disabled={!updateBill}><CheckCircle2 size={14} /></Button> <Button size="sm" variant="outline-danger" title="Delete" aria-label={`Delete ${item.name}`} onClick={() => deleteBill?.(item.id)}><Trash2 size={14} /></Button></td></tr>)}</tbody></Table></div> : <div className="text-secondary small">No upcoming bills recorded.</div>}
       </Card.Body></Card>
+
+      {payingBill && (
+        <PaymentModal
+          key={payingBill.id}
+          kind="bill"
+          item={payingBill}
+          transactions={transactions}
+          onClose={() => setPayingBill(null)}
+          onRecordEntry={(entry) => addTransaction?.(entry)}
+          onApply={(patch) => updateBill?.(payingBill.id, patch)}
+        />
+      )}
+      {payingDebt && (
+        <PaymentModal
+          key={payingDebt.id}
+          kind="debt"
+          item={payingDebt}
+          transactions={transactions}
+          onClose={() => setPayingDebt(null)}
+          onRecordEntry={(entry) => addTransaction?.(entry)}
+          onApply={(patch) => updateDebt?.(payingDebt.id, patch)}
+        />
+      )}
     </div>
   );
 }
