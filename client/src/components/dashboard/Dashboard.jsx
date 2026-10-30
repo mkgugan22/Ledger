@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-import { Card, Row, Col } from "react-bootstrap";
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import { motion } from "framer-motion";
 import {
@@ -14,7 +13,6 @@ import EmptyState from "../shared/EmptyState.jsx";
 import { MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
 import Alerts from "./Alerts.jsx";
-import AnimatedCard from "../../lib/motion/AnimatedCard.jsx";
 import AnimatedNumber from "../../lib/motion/AnimatedNumber.jsx";
 import DashboardCommandCenter from "./DashboardCommandCenter.jsx";
 import "./dashboard-refresh.css";
