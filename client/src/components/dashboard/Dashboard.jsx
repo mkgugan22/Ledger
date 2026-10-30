@@ -5,7 +5,7 @@ import {
 import { motion } from "framer-motion";
 import {
   ArrowDownLeft, ArrowUpRight, Wallet, PiggyBank, TrendingUp, TrendingDown,
-  CreditCard, Sparkles, ReceiptText, ChartNoAxesCombined,
+  CreditCard, Sparkles, ReceiptText, Activity,
 } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import MonthPicker from "../shared/MonthPicker.jsx";
@@ -99,7 +99,7 @@ export default function Dashboard({
         <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .45, delay: .12 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Cash flow activity</h2><div className="lg-dashboard-panel-subtitle">Income, outflow and savings over recent months</div></div>
-            <span className="lg-dashboard-pill"><ChartNoAxesCombined size={13} /> 7-month view</span>
+            <span className="lg-dashboard-pill"><Activity size={13} /> 7-month view</span>
           </div>
           <div className="lg-dashboard-panel-body">
             {trend.length ? <div className="lg-dashboard-chart">
