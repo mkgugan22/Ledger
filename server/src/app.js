@@ -19,6 +19,7 @@ import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import aiRouter from "./routes/ai.js";
+import aiShareRouter from "./routes/aiShare.js";
 import { aiRateLimit } from "./middleware/rateLimit.js";
 
 // Builds and returns the configured Express app without connecting to a
@@ -33,24 +34,8 @@ export function createApp() {
     .split(",")
     .map((o) => o.trim());
 
-  // Render terminates TLS before forwarding requests. Trust only that first
-  // proxy so the auth limiter sees the real client address.
   if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
   app.use(helmet());
-  // Gzip JSON/CSV responses. Binary receipt/PDF payloads are already
-  // compressed formats, so the `compression` package's default filter
-  // (based on mime-db's `compressible` flag) skips them automatically —
-  // this only kicks in where it actually saves bandwidth.
-  //
-  // EXCEPTION: /api/ai/chat is a streamed, token-by-token response (see
-  // routes/ai.js). Node's gzip stream buffers internally and only
-  // releases bytes once its buffer fills or the response ends — for a
-  // short chat answer that buffer never fills, so compression silently
-  // held back every streamed chunk until the whole response finished,
-  // making the stream arrive all-at-once (or not at all before the
-  // client's timeout). Every other route keeps gzip exactly as before;
-  // only this one streaming endpoint is excluded, since the bandwidth
-  // savings on a short text answer are negligible anyway.
   app.use(
     compression({
       filter: (req, res) => {
@@ -60,9 +45,6 @@ export function createApp() {
     })
   );
   app.use(cors({ origin: allowedOrigins, credentials: true }));
-  // Receipt and payslip uploads are JSON-wrapped base64 payloads, so their
-  // body must be allowed to exceed the normal API limit without enlarging
-  // every authenticated endpoint.
   app.use("/api/transactions/:id/receipts", express.json({ limit: "8mb" }));
   app.use("/api/documents/parse-payslip", express.json({ limit: "8mb" }));
   app.use(express.json({ limit: "2mb" }));
@@ -84,10 +66,14 @@ export function createApp() {
     res.status(ready ? 200 : 503).json({ ok: ready, database: ready ? "ready" : "unavailable" });
   });
   app.use("/api/auth", authRouter);
+
+  // Shared chat snapshots are deliberately read-only and contain only the
+  // messages explicitly selected for sharing. This public GET route exposes
+  // neither account identity nor ledger records and is mounted before auth.
+  app.use("/api/ai/share", aiShareRouter);
+
   app.use(requireAuth);
   app.use("/api/ai", aiRateLimit, aiRouter);
-  // Placed after requireAuth so it can key by req.userId instead of IP —
-  // see the comment in middleware/rateLimit.js.
   app.use(apiRateLimit);
   app.use("/api/market", marketRouter);
   app.use("/api/transactions", transactionsRouter);
@@ -102,8 +88,6 @@ export function createApp() {
 
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
-  // Centralized error handler. Routes use asyncHandler() to forward rejected
-  // promises here instead of repeating try/catch in every handler.
   app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
     console.error(err);
