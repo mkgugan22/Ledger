@@ -16,6 +16,14 @@ const account = {
 };
 
 describe("authentication hardening", () => {
+  it("performs a dummy password comparison for unknown accounts", async () => {
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: "missing-account@example.com", password: "not-the-password" })
+      .expect(401)
+      .expect((response) => expect(response.body.error).toBe("Invalid email or password."));
+  });
+
   it("revokes a previously copied session cookie on logout", async () => {
     const registered = await request(app)
       .post("/api/auth/register")
