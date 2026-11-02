@@ -60,7 +60,14 @@ export function createApp() {
       },
     })
   );
-  app.use(cors({ origin: allowedOrigins, credentials: true }));
+  app.use(cors({
+    origin(origin, callback) {
+      // Do not emit CORS headers for untrusted origins. Unsafe requests are
+      // rejected by the explicit Origin guard below.
+      callback(null, !origin || allowedOrigins.includes(origin));
+    },
+    credentials: true,
+  }));
   // Receipt and payslip uploads are JSON-wrapped base64 payloads, so their
   // body must be allowed to exceed the normal API limit without enlarging
   // every authenticated endpoint.
@@ -74,6 +81,20 @@ export function createApp() {
     next();
   });
   app.use(cookieParser());
+
+  // SameSite=None is needed by the cross-site Netlify/Render deployment.
+  // Validate browser Origin on every state-changing API call to prevent CSRF.
+  // Requests without Origin remain compatible with Postman and server clients.
+  const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+  app.use("/api", (req, res, next) => {
+    if (safeMethods.has(req.method)) return next();
+    const origin = req.get("origin");
+    if (origin && !allowedOrigins.includes(origin)) {
+      return res.status(403).json({ error: "Request origin is not allowed." });
+    }
+    next();
+  });
+
   app.use("/api", (req, res, next) => {
     if (req.method === "GET") res.setHeader("Cache-Control", "private, no-cache");
     next();

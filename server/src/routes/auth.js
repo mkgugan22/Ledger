@@ -4,12 +4,16 @@ import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
 import Valuation from "../models/Valuation.js";
 import Investment from "../models/Investment.js";
-import { issueSession, requireAuth, clearSession } from "../middleware/auth.js";
+import { issueSession, requireAuth, revokeSession } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/rateLimit.js";
 import { validateBody, registerSchema, loginSchema } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
+
+// Always perform bcrypt work for an unknown email too, narrowing timing
+// differences that could otherwise help enumerate registered accounts.
+const DUMMY_PASSWORD_HASH = "$2a$12$C6UzMDM.H6dfI/f/IKcEe.9j8vI7wF7eY5J9mVvVx3yJtY3kJ4z6K";
 
 // Records created before authentication was introduced have no owner. The
 // database currently contains one account, so it is safe to claim those legacy
@@ -77,8 +81,9 @@ router.post(
   validateBody(loginSchema),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+passwordHash");
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+passwordHash tokenVersion");
+    const passwordMatches = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
+    if (!user || !passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
     await claimLegacyRecords(user._id);
@@ -98,9 +103,9 @@ router.get(
   })
 );
 
-router.post("/logout", (req, res) => {
-  clearSession(res);
+router.post("/logout", asyncHandler(async (req, res) => {
+  await revokeSession(req, res);
   res.json({ ok: true });
-});
+}));
 
 export default router;
