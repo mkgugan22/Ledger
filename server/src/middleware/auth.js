@@ -27,18 +27,20 @@ export function clearSession(res) {
   res.clearCookie("ledger_session", options);
 }
 
-// Revokes the presented session before clearing its browser cookie.
+// Logout invalidates all tokens previously issued for this account. If MongoDB
+// is unavailable, propagate the error so the client is not told revocation worked.
 export async function revokeSession(req, res) {
   const token = req.cookies?.ledger_session;
+  let payload = null;
   if (token) {
     try {
-      const payload = jwt.verify(token, secret());
-      if (payload.sub) {
-        await User.updateOne({ _id: payload.sub }, { $inc: { tokenVersion: 1 } });
-      }
+      payload = jwt.verify(token, secret());
     } catch {
-      // An expired or invalid token is already unusable.
+      // An expired or invalid token is already unusable; still clear its cookie.
     }
+  }
+  if (payload?.sub) {
+    await User.updateOne({ _id: payload.sub }, { $inc: { tokenVersion: 1 } });
   }
   clearSession(res);
 }
@@ -46,15 +48,23 @@ export async function revokeSession(req, res) {
 export async function requireAuth(req, res, next) {
   const token = req.cookies?.ledger_session;
   if (!token) return res.status(401).json({ error: "Authentication required" });
+
+  let payload;
   try {
-    const payload = jwt.verify(token, secret());
+    payload = jwt.verify(token, secret());
+  } catch {
+    return res.status(401).json({ error: "Session expired. Please sign in again." });
+  }
+
+  try {
     const user = await User.findById(payload.sub).select("tokenVersion").lean();
     if (!user || (payload.ver || 0) !== (user.tokenVersion || 0)) {
       return res.status(401).json({ error: "Session expired. Please sign in again." });
     }
     req.userId = payload.sub;
     return next();
-  } catch {
-    return res.status(401).json({ error: "Session expired. Please sign in again." });
+  } catch (err) {
+    // A database outage is a server failure, not an expired user session.
+    return next(err);
   }
 }
