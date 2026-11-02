@@ -48,6 +48,7 @@ import { currentMonth } from "./lib/format.js";
 import { MODES } from "./lib/constants.js";
 import { buildAlerts } from "./lib/alerts.js";
 import { useToast } from "./lib/motion/toastContext.js";
+import DashboardSkeleton from "./components/dashboard/DashboardSkeleton.jsx";
 
 // How long a deletion can be undone before it is sent to the server.
 const UNDO_WINDOW_MS = 5000;
@@ -352,7 +353,7 @@ export default function App() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onAuthenticated={setUser} />} />
       <Route path="/ledger-ai/shared/:token" element={<SharedLedgerAI />} />
       <Route element={<Protected user={user}><Layout apiError={apiError} user={user} theme={theme} onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")} onLogout={async () => { await flushPendingDeletes(); await logout().catch(() => {}); setUser(null); }} /></Protected>}>
-        <Route index element={loaded ? <Dashboard {...shared} /> : <div className="py-5 text-secondary">Loading your entries…</div>} />
+        <Route index element={loaded ? <Dashboard {...shared} /> : <DashboardSkeleton />} />
         <Route path="add" element={<AddEntry {...shared} />} />
         <Route path="entries" element={<Entries {...shared} />} />
         <Route path="budget" element={<Budget {...shared} />} />

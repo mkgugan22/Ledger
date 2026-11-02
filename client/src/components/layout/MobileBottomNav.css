@@ -1,0 +1,65 @@
+/* Phone-only bottom tab bar. Uses the same pine cover + brass accents as the
+   top bar and sidebar so it reads as part of the existing navigation. */
+.lg-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1030;
+  display: grid;
+  grid-template-columns: 1fr 1fr 64px 1fr 1fr;
+  align-items: center;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--lg-cover);
+  border-top: 1px solid rgba(247, 242, 228, 0.12);
+}
+
+.lg-bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  color: rgba(247, 242, 228, 0.7);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.lg-bottom-tab:hover { color: var(--lg-page); }
+.lg-bottom-tab.active { color: #f0d47a; }
+
+/* Raised centre button for the most common action. */
+.lg-bottom-add {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--lg-brass);
+  color: #122420;
+  border: 4px solid var(--lg-cover);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.lg-bottom-add:hover { color: #122420; background: #cba43f; }
+.lg-bottom-add:active { transform: scale(0.94); }
+.lg-bottom-add.active { background: #f0d47a; }
+
+.lg-bottom-nav :focus-visible { outline: 2px solid #f0d47a; outline-offset: 2px; }
+
+/* Only on phones/tablets (the bar is d-lg-none): keep page content, the
+   companion and toasts clear of the bar. */
+@media (max-width: 991.98px) {
+  .lg-bottom-spacer { height: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .ilc-root { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
+  .lg-toast-stack { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-bottom-add { transition: none; }
+}

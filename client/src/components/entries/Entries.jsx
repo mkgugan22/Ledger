@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, Table, Form, Button, Spinner } from "react-bootstrap";
 import { Trash2, Pencil, Check, X, Repeat, Download, Upload, RefreshCw } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
@@ -18,7 +19,13 @@ export default function Entries({
   exportCSV,
   importCSV,
 }) {
-  const [filterMode, setFilterMode] = useState("All");
+  // The dashboard's KPI cards link here with ?mode=Needs etc. Anything else
+  // (or no param) keeps the original default of showing everything.
+  const [searchParams] = useSearchParams();
+  const [filterMode, setFilterMode] = useState(() => {
+    const requested = searchParams.get("mode");
+    return MODES.includes(requested) ? requested : "All";
+  });
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
   const [generating, setGenerating] = useState(false);

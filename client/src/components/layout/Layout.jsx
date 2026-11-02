@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import Sidebar from "./Sidebar.jsx";
 import TopNavbar from "./TopNavbar.jsx";
+import MobileBottomNav from "./MobileBottomNav.jsx";
 import AnimatedBackground from "../../lib/motion/AnimatedBackground.jsx";
 import PageTransition from "../../lib/motion/PageTransition.jsx";
 import InteractiveLedgerCompanion from "../../lib/motion/InteractiveLedgerCompanion.jsx";
@@ -74,7 +75,11 @@ export default function Layout({
             </PageTransition>
           </div>
         </main>
+        {/* Phone-only: spacer keeps the last content clear of the fixed bar. */}
+        <div className="lg-bottom-spacer d-lg-none" aria-hidden="true" />
       </div>
+
+      <MobileBottomNav />
 
       {/*
        * ============================================================
