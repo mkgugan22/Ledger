@@ -17,6 +17,7 @@ import { describeDelta, previousMonth, totalsForMonth } from "../../lib/deltas.j
 import Alerts from "./Alerts.jsx";
 import AnimatedNumber from "../../lib/motion/AnimatedNumber.jsx";
 import DashboardCommandCenter from "./DashboardCommandCenter.jsx";
+import DashboardSectionNav from "./DashboardSectionNav.jsx";
 import "./dashboard-refresh.css";
 
 // KPI cards link to All Entries pre-filtered to that mode.
@@ -84,7 +85,7 @@ export default function Dashboard({
 
   return (
     <div className="lg-dashboard">
-      <div className="lg-dashboard-head">
+      <div className="lg-dashboard-head" id="dashboard-overview">
         <div>
           <div className="lg-dashboard-eyebrow"><Sparkles size={13} className="me-1" /> Your money, in focus</div>
           <h1 className="lg-dashboard-title">Dashboard overview</h1>
@@ -92,6 +93,8 @@ export default function Dashboard({
         </div>
         <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
       </div>
+
+      <DashboardSectionNav />
 
       <div className="lg-dashboard-kpis">
         {cards.map((card, index) => {
@@ -108,7 +111,7 @@ export default function Dashboard({
       </div>
 
       <div className="lg-dashboard-grid">
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
+        <motion.section id="dashboard-cash-flow" className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Cash flow activity</h2><div className="lg-dashboard-panel-subtitle">Income, outflow and savings over recent months</div></div>
             <span className="lg-dashboard-pill"><Activity size={13} /> 7-month view</span>
@@ -156,7 +159,7 @@ export default function Dashboard({
       </div>
 
       <div className="lg-dashboard-grid">
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
+        <motion.section id="dashboard-recent" className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Recent transactions</h2><div className="lg-dashboard-panel-subtitle">Latest entries for {monthLabel(selectedMonth)}</div></div>
             <span className="lg-dashboard-pill"><ReceiptText size={13} /> {monthTransactions.length} entries</span>
@@ -180,7 +183,7 @@ export default function Dashboard({
           </div>
         </motion.section>
 
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .12 }}>
+        <motion.section id="dashboard-categories" className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .12 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Expense categories</h2><div className="lg-dashboard-panel-subtitle">Where your money is going this month</div></div>
             <CreditCard size={18} />
@@ -205,7 +208,7 @@ export default function Dashboard({
         <span className="font-mono fw-bold fs-4" style={{ color: net >= 0 ? MODE_COLOR.Income : MODE_COLOR.Spending }}>₹<AnimatedNumber value={net} formatter={fmtINR} /></span>
       </motion.div>
 
-      <div className="lg-dashboard-details">
+      <div className="lg-dashboard-details" id="dashboard-insights">
         <PageHeader title="Financial intelligence" subtitle="Deeper trends, health score, budgets and personalized insights" />
         <DashboardCommandCenter
           selectedMonth={selectedMonth}
