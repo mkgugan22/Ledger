@@ -20,7 +20,7 @@ import { requireAuth } from "./middleware/auth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import aiRouter from "./routes/ai.js";
 import aiShareRouter from "./routes/aiShare.js";
-import { aiRateLimit } from "./middleware/rateLimit.js";
+import { aiRateLimit, aiShareReadRateLimit } from "./middleware/rateLimit.js";
 
 // Builds and returns the configured Express app without connecting to a
 // database or starting a listener. Kept separate from index.js so tests
@@ -87,7 +87,7 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   // Shared chat snapshots expose only explicitly shared message content; this
   // read-only route must remain public so recipients do not need an account.
-  app.use("/api/ai/share", aiShareRouter);
+  app.use("/api/ai/share", aiShareReadRateLimit, aiShareRouter);
   app.use(requireAuth);
   app.use("/api/ai", aiRateLimit, aiRouter);
   // Placed after requireAuth so it can key by req.userId instead of IP —
