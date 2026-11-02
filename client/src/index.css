@@ -91,6 +91,18 @@ body {
   color: var(--lg-text);
 }
 
+/* Scroll narrative indicator: fixed over the page so it never shifts content. */
+.lg-scroll-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 3px;
+  z-index: 1080;
+  transform-origin: 0% 50%;
+  background: linear-gradient(90deg, var(--lg-brass), #6eaa91 55%, #8bc5d2);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lg-brass) 48%, transparent);
+  pointer-events: none;
+}
+
 /* ---------- Keyboard focus ---------- */
 :focus-visible {
   outline: 2px solid var(--lg-focus-ring);
@@ -299,6 +311,21 @@ body {
 .lg-table tbody tr:hover {
   background-color: color-mix(in srgb, var(--lg-page-dim) 48%, transparent);
 }
+.lg-dashboard-transactions tbody tr {
+  transition: background-color 0.18s ease;
+}
+.lg-dashboard-transactions tbody tr:hover {
+  background-color: color-mix(in srgb, var(--lg-page-dim) 58%, transparent);
+}
+.lg-dashboard-category {
+  transition: transform 0.2s ease;
+}
+.lg-dashboard-category:hover {
+  transform: translateX(4px);
+}
+.progress-bar {
+  transition: width 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
 /* Tactile feedback for existing controls; actions and hit areas stay intact. */
 button, .btn {
@@ -315,6 +342,8 @@ button:not(:disabled):active, .btn:not(:disabled):active {
 
 @media (prefers-reduced-motion: reduce) {
   .lg-table tbody tr,
+  .lg-dashboard-transactions tbody tr,
+  .lg-dashboard-category,
   button, .btn,
   .lg-filter-chip, .lg-mode-chip {
     transition-duration: 0.01ms !important;

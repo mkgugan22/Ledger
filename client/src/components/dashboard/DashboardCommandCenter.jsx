@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Card, Row, Col, ButtonGroup, Button, ProgressBar, Badge } from "react-bootstrap";
 import { Activity, CalendarDays, CreditCard, PiggyBank, ShieldCheck, Target, TrendingUp, Wallet } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -9,6 +10,7 @@ import { debtHealthScore, summarizeBills, totalDebtOutstanding } from "../../lib
 import { PERIODS, filterByPeriod, periodLabel } from "../../lib/periods.js";
 
 const money = (v) => `₹${fmtINR(Math.round(Number(v) || 0))}`;
+const MotionButton = motion.create(Button);
 
 function sumByMode(list) {
   const t = { Income: 0, Needs: 0, Savings: 0, Spending: 0 };
@@ -170,7 +172,7 @@ export default function DashboardCommandCenter({
               {periodNote && <div className="small text-secondary fst-italic">{periodNote}</div>}
             </div>
             <ButtonGroup size="sm" className="flex-wrap">
-              {PERIODS.map((p) => <Button key={p} variant={period === p ? "dark" : "outline-secondary"} onClick={() => setPeriod(p)}>{p}</Button>)}
+              {PERIODS.map((p) => <MotionButton key={p} variant={period === p ? "dark" : "outline-secondary"} onClick={() => setPeriod(p)} whileHover={{ y: -2 }} whileTap={{ scale: .96 }} transition={{ duration: .16, ease: "easeOut" }}>{p}</MotionButton>)}
             </ButtonGroup>
           </div>
           {period === "Custom" && <div className="d-flex gap-2 mt-3"><input className="form-control form-control-sm" type="month" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Custom period start" /><span className="align-self-center text-secondary">to</span><input className="form-control form-control-sm" type="month" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label="Custom period end" /></div>}
@@ -178,12 +180,12 @@ export default function DashboardCommandCenter({
       </Card>
 
       <Row className="g-3 mb-3">
-        {cards.map(([label, value, Icon, tone]) => <Col key={label} xs={6} lg={3}><Card className="lg-summary-card h-100"><Card.Body><div className="d-flex justify-content-between"><span className="lg-summary-label">{label}</span><Icon size={16} color={MODE_COLOR[tone]} /></div><div className="lg-summary-value font-mono mt-2" style={{ color: MODE_COLOR[tone] }}>{value}</div></Card.Body></Card></Col>)}
+        {cards.map(([label, value, Icon, tone], index) => <Col key={label} xs={6} lg={3}><motion.div className="h-100" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .45 }} transition={{ duration: .42, delay: index * .055, ease: "easeOut" }} whileHover={{ y: -4 }}><Card className="lg-summary-card h-100"><Card.Body><div className="d-flex justify-content-between"><span className="lg-summary-label">{label}</span><Icon size={16} color={MODE_COLOR[tone]} /></div><div className="lg-summary-value font-mono mt-2" style={{ color: MODE_COLOR[tone] }}>{value}</div></Card.Body></Card></motion.div></Col>)}
       </Row>
 
       <Row className="g-3 mb-3">
-        <Col lg={5}><Card className="lg-card h-100"><Card.Body><div className="d-flex justify-content-between align-items-center mb-3"><div><div className="font-serif fs-5">Financial Health</div><div className="small text-secondary">Based only on data currently tracked in Ledger.{shortPeriod ? " Uses the full month while Today or This Week is selected." : ""}</div></div><Badge bg={healthScore >= 75 ? "success" : healthScore >= 50 ? "warning" : "danger"}>{healthScore}/100</Badge></div><ProgressBar now={healthScore} style={{ height: 10 }} /><div className="d-flex justify-content-between small text-secondary mt-2"><span>Savings {healthSavingsRate.toFixed(0)}%</span><span>Budget {budgetUsage.toFixed(0)}%</span><span>Emergency {emergencyTarget ? Math.min(100, emergencyCurrent / emergencyTarget * 100).toFixed(0) : "—"}%</span>{debtScore !== null && <span>Debt {Math.round(debtScore)}%</span>}</div></Card.Body></Card></Col>
-        <Col lg={7}><Card className="lg-card h-100"><Card.Body><div className="font-serif fs-5 mb-3">Smart insights</div><div className="d-grid gap-2">{insights.map((x, i) => <div className="border rounded p-3 small" key={i}>{x}</div>)}</div></Card.Body></Card></Col>
+        <Col lg={5}><motion.div className="h-100" initial={{ opacity: 0, x: -18 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .2 }} transition={{ duration: .52, ease: [.22, 1, .36, 1] }}><Card className="lg-card h-100"><Card.Body><div className="d-flex justify-content-between align-items-center mb-3"><div><div className="font-serif fs-5">Financial Health</div><div className="small text-secondary">Based only on data currently tracked in Ledger.{shortPeriod ? " Uses the full month while Today or This Week is selected." : ""}</div></div><Badge bg={healthScore >= 75 ? "success" : healthScore >= 50 ? "warning" : "danger"}>{healthScore}/100</Badge></div><ProgressBar now={healthScore} style={{ height: 10 }} /><div className="d-flex justify-content-between small text-secondary mt-2"><span>Savings {healthSavingsRate.toFixed(0)}%</span><span>Budget {budgetUsage.toFixed(0)}%</span><span>Emergency {emergencyTarget ? Math.min(100, emergencyCurrent / emergencyTarget * 100).toFixed(0) : "—"}%</span>{debtScore !== null && <span>Debt {Math.round(debtScore)}%</span>}</div></Card.Body></Card></motion.div></Col>
+        <Col lg={7}><motion.div className="h-100" initial={{ opacity: 0, x: 18 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .2 }} transition={{ duration: .52, delay: .08, ease: [.22, 1, .36, 1] }}><Card className="lg-card h-100"><Card.Body><div className="font-serif fs-5 mb-3">Smart insights</div><div className="d-grid gap-2">{insights.map((x, i) => <motion.div className="border rounded p-3 small" key={i} initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .5 }} transition={{ duration: .3, delay: i * .045 }}>{x}</motion.div>)}</div></Card.Body></Card></motion.div></Col>
       </Row>
 
       <Row className="g-3 mb-3">
