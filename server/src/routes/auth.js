@@ -13,7 +13,7 @@ const router = Router();
 
 // Always perform bcrypt work for an unknown email too, narrowing timing
 // differences that could otherwise help enumerate registered accounts.
-const DUMMY_PASSWORD_HASH = "$2a$12$C6UzMDM.H6dfI/f/IKcEe.9j8vI7wF7eY5J9mVvVx3yJtY3kJ4z6K";
+const DUMMY_PASSWORD_HASH = "$2b$12$Yzj8z3j9gfR4vx1JCjjfu.M7AANI/xPN4okgtrL8fWiodu6X.262W";
 
 // Records created before authentication was introduced have no owner. The
 // database currently contains one account, so it is safe to claim those legacy
