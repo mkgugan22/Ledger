@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import crypto from "node:crypto";
 import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
@@ -93,7 +94,7 @@ describe("ledger workflows", () => {
     expect(shared.headers["cache-control"]).toBe("no-store");
 
     await AiChatShare.updateOne(
-      { tokenHash: (await import("node:crypto")).default.createHash("sha256").update(created.body.token).digest("hex") },
+      { tokenHash: crypto.createHash("sha256").update(created.body.token).digest("hex") },
       { $set: { expiresAt: new Date(Date.now() - 1000) } },
     );
     await request(app).get(`/api/ai/share/${created.body.token}`).expect(404);
