@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Spinner } from "react-bootstrap";
+import { Alert, Spinner } from "react-bootstrap";
 import { ArrowLeft, Copy, CopyCheck, LockKeyhole, Share2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import LedgerAssistantAvatar from "./LedgerAssistantAvatar.jsx";
