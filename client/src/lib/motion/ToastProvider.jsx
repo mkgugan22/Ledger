@@ -37,6 +37,7 @@ export function ToastProvider({ children }) {
       {children}
       <div
         aria-live="polite"
+        className="lg-toast-stack"
         style={{
           position: "fixed",
           bottom: 20,

@@ -3,6 +3,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import {
   ArrowDownLeft, ArrowUpRight, Wallet, PiggyBank, TrendingUp, TrendingDown,
   CreditCard, Sparkles, ReceiptText, Activity,
@@ -11,11 +12,15 @@ import PageHeader from "../shared/PageHeader.jsx";
 import MonthPicker from "../shared/MonthPicker.jsx";
 import EmptyState from "../shared/EmptyState.jsx";
 import { MODE_COLOR } from "../../lib/constants.js";
-import { fmtINR, monthLabel } from "../../lib/format.js";
+import { fmtINR, monthLabel, shortMonthLabel } from "../../lib/format.js";
+import { describeDelta, previousMonth, totalsForMonth } from "../../lib/deltas.js";
 import Alerts from "./Alerts.jsx";
 import AnimatedNumber from "../../lib/motion/AnimatedNumber.jsx";
 import DashboardCommandCenter from "./DashboardCommandCenter.jsx";
 import "./dashboard-refresh.css";
+
+// KPI cards link to All Entries pre-filtered to that mode.
+const MotionLink = motion.create(Link);
 
 const money = (value) => `₹${fmtINR(Math.round(Number(value) || 0))}`;
 
@@ -48,6 +53,9 @@ export default function Dashboard({
     { label: "Savings", value: totals.Savings, icon: PiggyBank, color: MODE_COLOR.Savings, foot: "Set aside this month", tint: "rgba(103,158,214,.17)" },
     { label: "Spending", value: totals.Spending, icon: TrendingDown, color: MODE_COLOR.Spending, foot: "Flexible expenses", tint: "rgba(214,105,92,.15)" },
   ];
+
+  const prevMonth = previousMonth(selectedMonth);
+  const prevTotals = useMemo(() => totalsForMonth(transactions, prevMonth), [transactions, prevMonth]);
 
   const monthTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.month === selectedMonth)
@@ -86,13 +94,17 @@ export default function Dashboard({
       </div>
 
       <div className="lg-dashboard-kpis">
-        {cards.map((card, index) => (
-          <motion.div key={card.label} className="lg-dashboard-kpi" style={{ "--kpi-tint": card.tint }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: index * .07 }}>
-            <div className="lg-dashboard-kpi-label"><span>{card.label}</span><card.icon size={17} color={card.color} /></div>
-            <div className="lg-dashboard-kpi-value" style={{ color: card.color }}>₹<AnimatedNumber value={card.value} formatter={fmtINR} /></div>
-            <div className="lg-dashboard-kpi-foot">{card.foot}</div>
-          </motion.div>
-        ))}
+        {cards.map((card, index) => {
+          const delta = describeDelta(card.label, card.value, prevTotals[card.label]);
+          return (
+            <MotionLink key={card.label} to={`/entries?mode=${card.label}`} className="lg-dashboard-kpi lg-dashboard-kpi-link" style={{ "--kpi-tint": card.tint }} aria-label={`${card.label}: ${money(card.value)}. View ${card.label.toLowerCase()} entries`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: index * .07 }}>
+              <div className="lg-dashboard-kpi-label"><span>{card.label}</span><card.icon size={17} color={card.color} /></div>
+              <div className="lg-dashboard-kpi-value" style={{ color: card.color }}>₹<AnimatedNumber value={card.value} formatter={fmtINR} /></div>
+              <div className="lg-dashboard-kpi-foot">{card.foot}</div>
+              {delta && <div className={`lg-kpi-delta lg-kpi-delta-${delta.tone}`}><span aria-hidden="true">{delta.arrow}</span>{delta.word && <span className="visually-hidden">{delta.word} </span>} {delta.text} <span className="lg-kpi-delta-ref">vs {shortMonthLabel(prevMonth)}</span></div>}
+            </MotionLink>
+          );
+        })}
       </div>
 
       <div className="lg-dashboard-grid">
