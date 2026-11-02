@@ -129,6 +129,10 @@ export const upsertBudget = async (data) => withId(await request("/budgets", { m
 export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE" });
 
 export const fetchLedgerAIHistory = () => request("/ai/history");
+export const createLedgerAIShare = (messages) =>
+  request("/ai/share", { method: "POST", body: JSON.stringify({ messages }) });
+export const fetchSharedLedgerAIChat = (token) =>
+  request(`/ai/share/${encodeURIComponent(token)}`);
 
 export const fetchDebts = async () => collection(await request("/debts")).map(withId);
 export const createDebt = async (data) => withId(await request("/debts", { method: "POST", body: JSON.stringify(data) }));
