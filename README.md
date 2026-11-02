@@ -1,77 +1,65 @@
 # Ledger
 
-Ledger is a household money tracker for recording monthly income, needs,
-savings, spending, investment contributions, and portfolio valuations. It has
-a React/Vite frontend and an Express/Mongoose API backed by MongoDB.
+Ledger is a personal finance and investment tracker for income, spending, savings, budgets, obligations, investment contributions, bonds, and portfolio valuations. It uses a React/Vite frontend and an Express/Mongoose API backed by MongoDB.
 
-## What the app includes
+## Application features
 
-- **Dashboard** — monthly totals for income, needs, savings, spending, and
-  money in hand, plus category and valuation trend charts.
-- **Add Entry** — record an income, need, saving, or spending entry with a
-  type, amount, month, and optional note.
-- **All Entries** — filter entries by month and mode, edit them, or remove
-  them.
-- **Savings Tracker** — record one valuation per instrument and month, view
-  the history chart, and delete obsolete valuations.
-- **SIP Growth** — manage funds and contributions, compare invested value with
-  the latest estimate, review gains, and explore illustrative 8%, 10%, and 12%
-  projection scenarios. The projection is not a return guarantee.
-- **Fund research** — search mutual-fund schemes and retrieve NAV history from
-  the server-side market-data proxy.
-- **Authentication** — register and sign in with a bcrypt-hashed password;
-  sessions use a seven-day, HTTP-only JWT cookie.
-- **Themes** — switch between light and dark mode. Tables, forms, charts,
-  navigation, placeholders, and tooltips use theme-aware contrast colors.
-- **Responsive layout** — the sidebar and mobile navigation adapt to smaller
-  screens.
+- **Dashboard:** monthly cash-flow totals, category breakdowns, valuation trends, and financial alerts.
+- **Entries:** create, edit, filter, export, and import transactions; attach receipts; generate recurring entries.
+- **Budgets:** set monthly targets by mode and category.
+- **Savings tracker:** record monthly instrument valuations and review their history.
+- **SIP Growth:** manage SIP, additional contribution, and portfolio status records; research mutual-fund schemes and NAV history through the server-side market-data proxy.
+- **Auto-SIP:** a monthly India-time scheduler creates idempotent investment records using the existing environment configuration. Users with the configured excluded fund are eligible; the configured excluded fund itself is not auto-invested.
+- **Bonds:** track bond holdings, maturity information, and valuations.
+- **Obligations:** manage debts, EMIs, bills, and payment-related entries.
+- **Payslip parsing:** upload a PDF payslip to receive suggested auto-fill values for review.
+- **Ledger AI:** ask questions about ledger data, retain authenticated chat history, and explicitly share read-only conversation snapshots through expiring links.
+- **Authentication:** bcrypt password hashes and a seven-day HTTP-only JWT cookie.
+- **Themes and responsive layout:** light/dark theme and desktop/mobile navigation.
 
-## Project structure
+## Technology
+
+- Client: React 19, Vite, React Router, React-Bootstrap, Recharts, Framer Motion, and Three.js.
+- Server: Node.js, Express, Mongoose, MongoDB, Zod validation, JWT, bcryptjs, and rate limiting.
+- Tests: Vitest, Supertest, and mongodb-memory-server.
+
+## Repository layout
 
 ```text
 Ledger/
-├── client/                 # React 19 + Vite + React-Bootstrap frontend
-│   ├── public/              # Static assets
+├── client/
 │   └── src/
-│       ├── components/      # Auth, layout, dashboard, entries, savings, SIP
-│       └── lib/             # API client, constants, and formatting helpers
-├── server/                 # Express + Mongoose API
+│       ├── components/   # Application pages and UI
+│       └── lib/          # API client, formatting, calculations, motion
+├── server/
 │   └── src/
-│       ├── middleware/      # JWT session guard
-│       ├── models/          # User, Transaction, Valuation, Investment
-│       └── routes/          # Auth, transactions, valuations, investments,
-│                            # and mutual-fund market routes
-└── package.json             # Workspace scripts
+│       ├── middleware/   # Authentication, validation, rate limiting
+│       ├── models/       # Users and finance records
+│       ├── routes/       # REST API endpoints
+│       └── services/     # Auto-SIP and AI services
+└── .github/workflows/    # Continuous integration
 ```
 
-## Data model
+## API overview
 
-Every user-owned record is scoped with a `user` reference:
+All API routes are prefixed with `/api`.
 
-- `User`: name, normalized email, and bcrypt password hash.
-- `Transaction`: mode (`Income`, `Needs`, `Savings`, or `Spending`), type,
-  amount, `YYYY-MM` month, and optional note.
-- `Valuation`: `YYYY-MM` month, instrument name, and value. A compound unique
-  index prevents duplicate instrument/month records for one user.
-- `Investment`: fund, type (`SIP` or `Additional`), invested amount, current
-  estimate, date, optional monthly contribution, NAV, and source.
-
-Existing records created before authentication can be claimed automatically on
-the first authenticated request when the database contains exactly one user.
-This preserves legacy July/August data without exposing it across accounts.
-
-## API routes
-
-The server is mounted at `/api`:
-
-| Area | Routes | Purpose |
+| Area | Main endpoints | Purpose |
 | --- | --- | --- |
 | Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` | Account and session management |
-| Transactions | `GET/POST /transactions`, `PUT/DELETE /transactions/:id` | Monthly ledger entries |
-| Valuations | `GET/POST /valuations`, `DELETE /valuations/:id` | Instrument valuations |
+| Transactions | `GET/POST /transactions`, `PUT/DELETE /transactions/:id`, `POST /transactions/import`, `GET /transactions/export` | Ledger entries and CSV workflows |
+| Receipts | `POST/GET /transactions/:id/receipts` | Receipt attachments |
+| Valuations | `GET/POST /valuations`, `DELETE /valuations/:id` | Monthly valuations |
 | Investments | `GET/POST /investments`, `PUT/DELETE /investments/:id` | SIP and fund records |
-| Market | `GET /market/search?q=...`, `GET /market/:schemeCode` | Mutual-fund scheme and NAV lookup |
-| Health | `GET /health` | Server availability check |
+| Bonds | `/bonds` | Bond records |
+| Budgets | `/budgets` | Monthly budgets |
+| Debts and bills | `/debts`, `/bills` | Financial obligations |
+| Market | `GET /market/search?q=...`, `GET /market/:schemeCode` | Mutual-fund search and NAV proxy |
+| Documents | `POST /documents/parse-payslip` | Payslip parsing suggestions |
+| Ledger AI | `POST /ai/chat`, `GET /ai/history`, `POST /ai/share`, `GET /ai/share/:token` | AI chat and explicit expiring shares |
+| Health | `GET /health`, `GET /ready` | Liveness and database readiness |
+
+Transaction listing keeps the existing plain-array response when no query parameters are supplied. Callers can opt into pagination with `?page=1&limit=200`, or filter by `month` / `from` and `to`.
 
 ## Local development
 
@@ -82,60 +70,82 @@ npm install
 npm run install:all
 ```
 
-Create environment files from the safe templates:
+Copy the safe environment templates:
 
 ```bash
 cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
 
-Set the real MongoDB connection string and a long random JWT secret only in
-`server/.env`. Set `VITE_API_URL` in `client/.env` if the API is not running at
-`http://localhost:5000/api`.
+Set `MONGODB_URI` and a strong `JWT_SECRET` only in `server/.env`. Set `VITE_API_URL` in `client/.env` when the API is not at `http://localhost:5000/api`.
 
-Run both halves together:
+Run both services:
 
 ```bash
 npm run dev
 ```
 
-The frontend runs at `http://localhost:5173` and the API at
-`http://localhost:5000`.
+Client: `http://localhost:5173`; API: `http://localhost:5000`.
 
-Useful individual commands:
+Useful commands:
 
 ```bash
 npm run dev:client
 npm run dev:server
 npm run build:client
-npm --prefix client run lint
+npm run lint
+npm run test
 npm --prefix server run migrate:indexes
 ```
 
-## Production deployment
+## Environment configuration
 
-This repository is intentionally split into two deployables:
+Required server values:
 
-1. **Frontend:** build `client/` with `npm run build:client` and publish
-   `client/dist` as a static site. The build-time variable `VITE_API_URL` must
-   point to the public API, for example `https://api.example.com/api`.
-2. **API:** run `server/` on a Node-capable host with `MONGODB_URI`, `PORT`,
-   `CLIENT_ORIGIN`, `JWT_SECRET`, and `NODE_ENV=production` configured there.
+- `MONGODB_URI`
+- `JWT_SECRET` (at least 32 characters in production)
+- `CLIENT_ORIGIN` (comma-separated exact frontend origins, including scheme and port where applicable)
+- `NODE_ENV`
 
-Netlify hosts the static frontend. Do not put `MONGODB_URI` or `JWT_SECRET` in
-the frontend build; Vite variables are visible to browser users. Netlify only
-needs the public `VITE_API_URL` value for this architecture.
+Optional integrations include `GEMINI_API_KEY`, `GEMINI_MODEL`, and `GEMINI_TIMEOUT_MS`. MongoDB connection-pool settings can be tuned for the database tier and number of API instances.
 
-## Security and repository hygiene
+Auto-SIP supports these optional environment variables (the defaults preserve the current behavior):
 
-- Real `.env` files are ignored and must never be committed.
-- `node_modules`, build output, and generated work directories are ignored.
-- `.env.example` files contain placeholders only.
-- Passwords are never stored in plaintext.
-- API routes require the signed-in user's session and query only that user's
-  records.
-- If a database password or JWT secret has ever been shared outside its secret
-  store, rotate it before production deployment.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AUTO_SIP_ENABLED` | enabled outside tests | Set `false` to disable |
+| `AUTO_SIP_AMOUNT` | `1000` | Contribution amount in rupees |
+| `AUTO_SIP_DAY` | `10` | Day of month (1–28); weekends move to Monday |
+| `AUTO_SIP_START_MONTH` | `2026-11` | First eligible month |
+| `AUTO_SIP_EXCLUDED_FUNDS` | `LIC MF Consumption` | Comma-separated, case-insensitive fund names used for eligibility/exclusion |
+
+The current Auto-SIP configuration is global. Per-fund plans with independent amounts, dates, enable/disable controls, and a management UI are a separate enhancement and are not enabled by this release.
+
+## Deployment
+
+The intended production architecture is a static frontend plus a Node API:
+
+1. Build `client/` with `npm run build:client` and publish `client/dist` (the existing deployment documentation uses Netlify).
+2. Run `server/` on a Node-capable host such as Render.
+3. Set `VITE_API_URL` to the public API URL, and configure the API's `CLIENT_ORIGIN` to the exact deployed frontend origin.
+
+The checked-in `render.yaml` also defines an optional Render static-site service. Do not deploy two frontend copies unintentionally; choose one frontend host and keep `CLIENT_ORIGIN` aligned with it.
+
+Never place `MONGODB_URI`, `JWT_SECRET`, or the Gemini API key in frontend environment variables. Vite-exposed variables are public.
+
+## Security and operations
+
+- Passwords are stored as bcrypt hashes.
+- Authenticated API resources are scoped to the signed-in user.
+- Logout increments a per-user token version, invalidating JWT cookies previously issued for that account.
+- Unsafe API requests that include a browser `Origin` must match `CLIENT_ORIGIN`; requests without an Origin remain compatible with non-browser clients.
+- Rate limits are process-local unless a shared store is configured; multi-instance deployments should use a shared limiter store.
+- AI chat logs expire after 90 days; shared snapshots expire independently.
+- Keep regular MongoDB backups and rotate credentials that have been exposed.
+
+## Compatibility notes
+
+Existing financial amounts remain stored in their current numeric representation. A rupee-to-paise migration must be separately versioned; changing the unit in-place would corrupt existing values. Transaction list consumers continue receiving arrays unless they explicitly request pagination.
 
 ## License
 

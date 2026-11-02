@@ -1,17 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import LedgerAI from "./components/ai/LedgerAI.jsx";
-import SharedLedgerAI from "./components/ai/SharedLedgerAI.jsx";
-import Layout from "./components/layout/Layout.jsx";
-import Dashboard from "./components/dashboard/Dashboard.jsx";
-import AddEntry from "./components/entry/AddEntry.jsx";
-import Entries from "./components/entries/Entries.jsx";
-import Budget from "./components/budget/Budget.jsx";
-import SavingsTracker from "./components/savings/SavingsTracker.jsx";
-import Login from "./components/auth/Login.jsx";
-import SipGrowth from "./components/investments/SipGrowth.jsx";
-import Bonds from "./components/bonds/Bonds.jsx";
-import Obligations from "./components/obligations/Obligations.jsx";
+// Route-level code splitting keeps investment charts, Three.js scenes, and
+// other page-specific dependencies out of the initial application bundle.
+// Route paths and component props remain unchanged.
+const LedgerAI = lazy(() => import("./components/ai/LedgerAI.jsx"));
+const SharedLedgerAI = lazy(() => import("./components/ai/SharedLedgerAI.jsx"));
+const Layout = lazy(() => import("./components/layout/Layout.jsx"));
+const Dashboard = lazy(() => import("./components/dashboard/Dashboard.jsx"));
+const AddEntry = lazy(() => import("./components/entry/AddEntry.jsx"));
+const Entries = lazy(() => import("./components/entries/Entries.jsx"));
+const Budget = lazy(() => import("./components/budget/Budget.jsx"));
+const SavingsTracker = lazy(() => import("./components/savings/SavingsTracker.jsx"));
+const Login = lazy(() => import("./components/auth/Login.jsx"));
+const SipGrowth = lazy(() => import("./components/investments/SipGrowth.jsx"));
+const Bonds = lazy(() => import("./components/bonds/Bonds.jsx"));
+const Obligations = lazy(() => import("./components/obligations/Obligations.jsx"));
 import {
   createTransaction,
   editTransaction,
@@ -344,6 +347,7 @@ export default function App() {
 
   if (!authChecked) return <div className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}><span className="font-serif text-secondary">Opening the ledger…</span></div>;
   return <BrowserRouter>
+    <Suspense fallback={<div className="d-flex align-items-center justify-content-center py-5 text-secondary" role="status">Loading page…</div>}>
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onAuthenticated={setUser} />} />
       <Route path="/ledger-ai/shared/:token" element={<SharedLedgerAI />} />
@@ -359,5 +363,6 @@ export default function App() {
         <Route path="ledger-ai" element={<LedgerAI />} />
       </Route>
     </Routes>
+    </Suspense>
   </BrowserRouter>;
 }
