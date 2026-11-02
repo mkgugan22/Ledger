@@ -15,6 +15,7 @@ import PageHeader from "../shared/PageHeader.jsx";
 import EmptyState from "../shared/EmptyState.jsx";
 import { INSTRUMENTS_HINT, TREND_LINE_COLORS } from "../../lib/constants.js";
 import { fmtINR, monthLabel, shortMonthLabel } from "../../lib/format.js";
+import { AnimatedTableRow, AnimatedTableRows } from "../../lib/motion/AnimatedTableRows.jsx";
 
 export default function SavingsTracker({
   valuations,
@@ -170,8 +171,9 @@ export default function SavingsTracker({
                   </tr>
                 </thead>
                 <tbody>
+                  <AnimatedTableRows>
                   {sortedRows.map((v) => (
-                    <tr key={v.id} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
+                    <AnimatedTableRow key={v.id} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
                       <td>{monthLabel(v.month)}</td>
                       <td>{v.instrument}</td>
                       <td className="text-end font-mono">₹{fmtINR(v.value)}</td>
@@ -185,8 +187,9 @@ export default function SavingsTracker({
                           <Trash2 size={14} />
                         </button>
                       </td>
-                    </tr>
+                    </AnimatedTableRow>
                   ))}
+                  </AnimatedTableRows>
                 </tbody>
               </Table>
             </div>

@@ -293,6 +293,35 @@ body {
   vertical-align: middle;
   font-size: 0.9rem;
 }
+.lg-table tbody tr {
+  transition: background-color 0.16s ease;
+}
+.lg-table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--lg-page-dim) 48%, transparent);
+}
+
+/* Tactile feedback for existing controls; actions and hit areas stay intact. */
+button, .btn {
+  transition: transform 0.14s ease, box-shadow 0.18s ease, background-color 0.18s ease,
+    border-color 0.18s ease, color 0.18s ease;
+}
+button:not(:disabled):active, .btn:not(:disabled):active {
+  transform: translateY(1px) scale(0.985);
+}
+.lg-filter-chip:focus-visible,
+.lg-mode-chip:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lg-brass) 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-table tbody tr,
+  button, .btn,
+  .lg-filter-chip, .lg-mode-chip {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 
 /* ---------- Empty state ---------- */
 .lg-empty {

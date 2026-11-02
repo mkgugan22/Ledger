@@ -7,6 +7,7 @@ import EmptyState from "../shared/EmptyState.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
 import { computeBudgetComparison } from "../../lib/budget.js";
+import { AnimatedTableRow, AnimatedTableRows } from "../../lib/motion/AnimatedTableRows.jsx";
 
 export default function Budget({
   selectedMonth,
@@ -114,10 +115,11 @@ export default function Budget({
                   </tr>
                 </thead>
                 <tbody>
+                  <AnimatedTableRows>
                   {rows.map((r) => {
                     const budgetDoc = monthBudgets.find((b) => b.mode === r.mode && b.type === r.type);
                     return (
-                      <tr key={`${r.mode}::${r.type}`} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
+                      <AnimatedTableRow key={`${r.mode}::${r.type}`} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
                         <td>
                           <span className="lg-mode-badge" style={{ background: MODE_COLOR[r.mode] }}>{r.mode}</span>
                         </td>
@@ -139,9 +141,10 @@ export default function Budget({
                             </button>
                           )}
                         </td>
-                      </tr>
+                      </AnimatedTableRow>
                     );
                   })}
+                  </AnimatedTableRows>
                 </tbody>
               </Table>
             </div>

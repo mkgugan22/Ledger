@@ -8,6 +8,7 @@ import EmptyState from "../shared/EmptyState.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
 import { fmtINR, monthLabel } from "../../lib/format.js";
 import ReceiptLinks from "./ReceiptLinks.jsx";
+import { AnimatedTableRow, AnimatedTableRows } from "../../lib/motion/AnimatedTableRows.jsx";
 
 export default function Entries({
   selectedMonth,
@@ -149,8 +150,9 @@ export default function Entries({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((t) => (
-                    <tr key={t.id} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
+                  <AnimatedTableRows>
+                    {rows.map((t) => (
+                      <AnimatedTableRow key={t.id} style={{ borderBottom: "1px solid var(--lg-rule)" }}>
                       {editingId === t.id ? (
                         <>
                           <td style={{ minWidth: 110 }}>
@@ -186,8 +188,9 @@ export default function Entries({
                           </td>
                         </>
                       )}
-                    </tr>
-                  ))}
+                      </AnimatedTableRow>
+                    ))}
+                  </AnimatedTableRows>
                 </tbody>
               </Table>
             </div>
