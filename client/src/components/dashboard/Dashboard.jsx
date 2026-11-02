@@ -97,7 +97,7 @@ export default function Dashboard({
         {cards.map((card, index) => {
           const delta = describeDelta(card.label, card.value, prevTotals[card.label]);
           return (
-            <MotionLink key={card.label} to={`/entries?mode=${card.label}`} className="lg-dashboard-kpi lg-dashboard-kpi-link" style={{ "--kpi-tint": card.tint }} aria-label={`${card.label}: ${money(card.value)}. View ${card.label.toLowerCase()} entries`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: index * .07 }}>
+            <MotionLink key={card.label} to={`/entries?mode=${card.label}`} className="lg-dashboard-kpi lg-dashboard-kpi-link" style={{ "--kpi-tint": card.tint }} aria-label={`${card.label}: ${money(card.value)}. View ${card.label.toLowerCase()} entries`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: index * .07 }} whileHover={{ y: -7, scale: 1.02, boxShadow: "0 16px 30px rgba(18,36,32,.16)" }} whileTap={{ scale: .975 }}>
               <div className="lg-dashboard-kpi-label"><span>{card.label}</span><card.icon size={17} color={card.color} /></div>
               <div className="lg-dashboard-kpi-value" style={{ color: card.color }}>₹<AnimatedNumber value={card.value} formatter={fmtINR} /></div>
               <div className="lg-dashboard-kpi-foot">{card.foot}</div>
@@ -108,7 +108,7 @@ export default function Dashboard({
       </div>
 
       <div className="lg-dashboard-grid">
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .45, delay: .12 }}>
+        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Cash flow activity</h2><div className="lg-dashboard-panel-subtitle">Income, outflow and savings over recent months</div></div>
             <span className="lg-dashboard-pill"><Activity size={13} /> 7-month view</span>
@@ -135,7 +135,7 @@ export default function Dashboard({
           </div>
         </motion.section>
 
-        <motion.section className="lg-dashboard-panel lg-dashboard-balance" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: .48, delay: .18 }}>
+        <motion.section className="lg-dashboard-panel lg-dashboard-balance" initial={{ opacity: 0, x: 24 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .62, ease: [.22, 1, .36, 1], delay: .12 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Financial snapshot</h2><div className="lg-dashboard-panel-subtitle">Your month at a glance</div></div>
             <Wallet size={19} />
@@ -156,7 +156,7 @@ export default function Dashboard({
       </div>
 
       <div className="lg-dashboard-grid">
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: .2 }}>
+        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .08 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Recent transactions</h2><div className="lg-dashboard-panel-subtitle">Latest entries for {monthLabel(selectedMonth)}</div></div>
             <span className="lg-dashboard-pill"><ReceiptText size={13} /> {monthTransactions.length} entries</span>
@@ -180,7 +180,7 @@ export default function Dashboard({
           </div>
         </motion.section>
 
-        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .42, delay: .26 }}>
+        <motion.section className="lg-dashboard-panel" initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .16 }} transition={{ duration: .58, ease: [.22, 1, .36, 1], delay: .12 }}>
           <div className="lg-dashboard-panel-head">
             <div><h2 className="lg-dashboard-panel-title">Expense categories</h2><div className="lg-dashboard-panel-subtitle">Where your money is going this month</div></div>
             <CreditCard size={18} />
@@ -188,11 +188,11 @@ export default function Dashboard({
           <div className="lg-dashboard-panel-body">
             {categoryChartData.length ? <>
               <div className="d-flex align-items-baseline justify-content-between gap-2 mb-3"><span className="text-secondary small">Tracked outflow</span><strong>{money(categoryChartData.reduce((sum, item) => sum + (Number(item.amount) || 0), 0))}</strong></div>
-              {categoryChartData.slice(0, 6).map((item, index) => <div className="lg-dashboard-category" key={item.name}>
+              {categoryChartData.slice(0, 6).map((item, index) => <motion.div className="lg-dashboard-category" key={item.name} initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .6 }} transition={{ duration: .38, delay: index * .055, ease: "easeOut" }}>
                 <div className="lg-dashboard-category-name"><span className="d-inline-block rounded-circle me-2" style={{ width: 7, height: 7, background: MODE_COLOR[item.mode] || ["#87a8ff", "#72c6ac", "#d7a76e", "#d98282", "#a99be8", "#68b7c7"][index % 6] }} />{item.name}</div>
                 <div className="lg-dashboard-category-amount">{money(item.amount)}</div>
                 <div className="lg-dashboard-category-track"><div className="lg-dashboard-category-fill" style={{ width: `${Math.max(2, Math.min(100, (Number(item.amount) / maxCategory) * 100))}%`, background: MODE_COLOR[item.mode] || ["#87a8ff", "#72c6ac", "#d7a76e", "#d98282", "#a99be8", "#68b7c7"][index % 6], animationDelay: `${index * 80}ms` }} /></div>
-              </div>)}
+              </motion.div>)}
             </> : <EmptyState text="Your category breakdown will appear after you record expenses." />}
           </div>
         </motion.section>
@@ -200,7 +200,7 @@ export default function Dashboard({
 
       <Alerts alerts={alerts} />
 
-      <motion.div className="lg-inhand-bar d-flex justify-content-between align-items-center px-4 py-3 mb-4" initial={{ opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .35, delay: .25 }}>
+      <motion.div className="lg-inhand-bar d-flex justify-content-between align-items-center px-4 py-3 mb-4" initial={{ opacity: 0, scale: .975, y: 12 }} whileInView={{ opacity: 1, scale: 1, y: 0 }} viewport={{ once: true, amount: .5 }} transition={{ duration: .55, ease: [.22, 1, .36, 1] }}>
         <span className="font-serif">In hand this month</span>
         <span className="font-mono fw-bold fs-4" style={{ color: net >= 0 ? MODE_COLOR.Income : MODE_COLOR.Spending }}>₹<AnimatedNumber value={net} formatter={fmtINR} /></span>
       </motion.div>
