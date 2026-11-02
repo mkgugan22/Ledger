@@ -1,6 +1,13 @@
 /* Dashboard visual refresh — scoped to the dashboard so other routes retain their existing UI. */
 .lg-dashboard { --dash-accent:#86a7ff; --dash-accent-2:#a8bbff; }
 .lg-dashboard-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:1.35rem; }
+.lg-dashboard-section-nav { display:flex; gap:.35rem; margin:-.5rem 0 1rem; padding:.3rem; max-width:100%; overflow-x:auto; border:1px solid var(--lg-rule); border-radius:999px; background:color-mix(in srgb,var(--lg-surface) 82%,transparent); scrollbar-width:none; }
+.lg-dashboard-section-nav::-webkit-scrollbar { display:none; }
+.lg-dashboard-section-link { position:relative; flex:0 0 auto; min-height:2.45rem; padding:.45rem .9rem; border:0; border-radius:999px; background:transparent; color:var(--lg-text-dim); font:inherit; font-size:.76rem; font-weight:600; cursor:pointer; }
+.lg-dashboard-section-link:hover,.lg-dashboard-section-link.active { color:var(--lg-text); }
+.lg-dashboard-section-indicator { position:absolute; inset:0; z-index:0; border:1px solid color-mix(in srgb,var(--lg-brass) 36%,var(--lg-rule)); border-radius:inherit; background:color-mix(in srgb,var(--lg-brass) 15%,var(--lg-surface)); box-shadow:0 2px 8px color-mix(in srgb,var(--lg-brass) 16%,transparent); }
+.lg-dashboard-section-label { position:relative; z-index:1; white-space:nowrap; }
+.lg-dashboard-head,.lg-dashboard-panel,.lg-dashboard-details { scroll-margin-top:1.25rem; }
 .lg-dashboard-eyebrow { color:var(--lg-text-dim); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; }
 .lg-dashboard-title { font-size:clamp(1.65rem,2.5vw,2.25rem); letter-spacing:-.045em; font-weight:650; margin:.2rem 0 .25rem; }
 .lg-dashboard-subtitle { color:var(--lg-text-dim); font-size:.88rem; }
@@ -51,6 +58,7 @@
 @media(max-width:1000px) { .lg-dashboard-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}.lg-dashboard-grid {grid-template-columns:minmax(0,1fr)} }
 @media(max-width:575.98px) { .lg-dashboard-head {align-items:flex-start;flex-direction:column}.lg-dashboard-kpis {gap:.6rem}.lg-dashboard-kpi {padding:.8rem}.lg-dashboard-panel-head {padding:1rem .9rem .55rem}.lg-dashboard-panel-body {padding:.65rem .9rem .9rem}.lg-dashboard-transactions th,.lg-dashboard-transactions td {padding:.65rem .35rem}.lg-dashboard-hide-mobile {display:none} }
 @media(prefers-reduced-motion:reduce) { .lg-dashboard-kpi,.lg-dashboard-category-fill {animation:none}.lg-dashboard-kpi,.lg-dashboard-panel {transition:none} }
+@media(prefers-reduced-motion:reduce) { .lg-dashboard-section-link {transition:none!important} }
 
 /* KPI cards are now links to All Entries (filtered by mode) and show a
    month-over-month change. Colour is never the only signal: the arrow and the
