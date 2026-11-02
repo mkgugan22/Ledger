@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LedgerAI from "./components/ai/LedgerAI.jsx";
+import SharedLedgerAI from "./components/ai/SharedLedgerAI.jsx";
 import Layout from "./components/layout/Layout.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
 import AddEntry from "./components/entry/AddEntry.jsx";
@@ -345,6 +346,7 @@ export default function App() {
   return <BrowserRouter>
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onAuthenticated={setUser} />} />
+      <Route path="/ledger-ai/shared/:token" element={<SharedLedgerAI />} />
       <Route element={<Protected user={user}><Layout apiError={apiError} user={user} theme={theme} onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")} onLogout={async () => { await flushPendingDeletes(); await logout().catch(() => {}); setUser(null); }} /></Protected>}>
         <Route index element={loaded ? <Dashboard {...shared} /> : <div className="py-5 text-secondary">Loading your entries…</div>} />
         <Route path="add" element={<AddEntry {...shared} />} />

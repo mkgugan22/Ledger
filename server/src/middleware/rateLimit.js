@@ -38,3 +38,13 @@ export const aiRateLimit = rateLimit({
     error: "Too many Ledger AI requests. Please try again in a few minutes.",
   },
 });
+
+export const aiShareReadRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many shared conversation requests. Please try again later.",
+  },
+});

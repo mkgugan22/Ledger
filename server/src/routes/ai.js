@@ -5,6 +5,7 @@ import { validateBody, ledgerAiChatSchema } from "../middleware/validate.js";
 import { buildLedgerSnapshot } from "../services/ai/ledgerData.js";
 import { askGeminiStream } from "../services/ai/gemini.js";
 import AiChatLog from "../models/AiChatLog.js";
+import AiChatShare from "../models/AiChatShare.js";
 
 const router = Router();
 
@@ -69,6 +70,46 @@ router.get(
     ]);
 
     res.json({ messages });
+  })
+);
+
+router.post(
+  "/share",
+  asyncHandler(async (req, res) => {
+    const input = req.body?.messages;
+    if (!Array.isArray(input) || input.length < 2 || input.length > 81) {
+      return res.status(400).json({ error: "Choose a conversation with between 2 and 81 messages to share." });
+    }
+
+    let totalCharacters = 0;
+    const messages = input.map((item) => {
+      if (!item || !["user", "assistant"].includes(item.role) || typeof item.content !== "string") {
+        return null;
+      }
+
+      const content = item.content.trim();
+      if (!content || content.length > 12000) return null;
+      totalCharacters += content.length;
+      if (totalCharacters > 40000) return null;
+
+      const parsedDate = item.createdAt ? new Date(item.createdAt) : new Date();
+      return {
+        role: item.role,
+        content,
+        createdAt: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+      };
+    });
+
+    if (messages.some((item) => !item) || !messages.some((item) => item.role === "user")) {
+      return res.status(400).json({ error: "The conversation contains an invalid or oversized message." });
+    }
+
+    const token = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await AiChatShare.create({ tokenHash, messages, expiresAt });
+    res.status(201).json({ token, expiresAt });
   })
 );
 
