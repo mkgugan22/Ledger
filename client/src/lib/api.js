@@ -111,6 +111,10 @@ export const removeValuation = (id) => request(`/valuations/${id}`, { method: "D
 export const warmApi = () => request("/health");
 export const login = (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) });
 export const register = (data) => request("/auth/register", { method: "POST", body: JSON.stringify(data) });
+export const verifyEmail = (token) => request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+export const resendVerification = (email) => request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
+export const requestPasswordReset = (email) => request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+export const resetPassword = (token, password) => request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
 export const fetchSession = () => request("/auth/me");
 export const logout = () => request("/auth/logout", { method: "POST" });
 
