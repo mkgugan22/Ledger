@@ -1,5 +1,16 @@
 import RateLimitCounter from "../models/RateLimitCounter.js";
 
+let indexesReady;
+async function ensureIndexes() {
+  if (!indexesReady) {
+    indexesReady = RateLimitCounter.init().catch((error) => {
+      indexesReady = null;
+      throw error;
+    });
+  }
+  return indexesReady;
+}
+
 // Mongo-backed express-rate-limit store. Atomic update pipelines ensure that
 // concurrent API instances increment the same counter without losing hits.
 // The TTL index removes expired counters; expired documents are also reset
@@ -14,7 +25,6 @@ export class MongoRateLimitStore {
 
   async init(options) {
     this.windowMs = options.windowMs;
-    await RateLimitCounter.init();
   }
 
   keyFor(key) {
@@ -22,26 +32,41 @@ export class MongoRateLimitStore {
   }
 
   async increment(key) {
+    await ensureIndexes();
     const now = new Date();
     const resetAt = new Date(now.getTime() + this.windowMs);
-    const doc = await RateLimitCounter.findOneAndUpdate(
-      { key: this.keyFor(key) },
-      [{
-        $set: {
-          hits: {
-            $cond: [
-              { $gt: ["$resetAt", now] },
-              { $add: [{ $ifNull: ["$hits", 0] }, 1] },
-              1,
-            ],
-          },
-          resetAt: {
-            $cond: [{ $gt: ["$resetAt", now] }, "$resetAt", resetAt],
-          },
+    const pipeline = [{
+      $set: {
+        hits: {
+          $cond: [
+            { $gt: ["$resetAt", now] },
+            { $add: [{ $ifNull: ["$hits", 0] }, 1] },
+            1,
+          ],
         },
-      }],
-      { upsert: true, new: true },
-    ).lean();
+        resetAt: {
+          $cond: [{ $gt: ["$resetAt", now] }, "$resetAt", resetAt],
+        },
+      },
+    }];
+    let doc;
+    try {
+      doc = await RateLimitCounter.findOneAndUpdate(
+        { key: this.keyFor(key) },
+        pipeline,
+        { upsert: true, new: true },
+      ).lean();
+    } catch (error) {
+      // Two app instances can race to create the very first counter. The
+      // unique key index lets one win; retry the atomic update against it.
+      if (error?.code !== 11000) throw error;
+      doc = await RateLimitCounter.findOneAndUpdate(
+        { key: this.keyFor(key) },
+        pipeline,
+        { new: true },
+      ).lean();
+      if (!doc) return this.increment(key);
+    }
 
     return { totalHits: doc.hits, resetTime: doc.resetAt };
   }
@@ -66,6 +91,6 @@ export class MongoRateLimitStore {
   }
 
   async resetAll() {
-    await RateLimitCounter.deleteMany({ key: new RegExp("^" + this.prefix.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&") + ":") });
+    await RateLimitCounter.deleteMany({ key: { $regex: "^" + this.prefix + ":" } });
   }
 }
