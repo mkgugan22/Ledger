@@ -43,6 +43,10 @@ export default function Login({ onAuthenticated }) {
   const strengthLabel = ["", "Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"][strength];
 
   useEffect(() => {
+    if (actionTokens.reset && mode === "reset" && !actionTokens.reset) {
+      setError("This password reset link is missing or invalid.");
+      return;
+    }
     if (!actionTokens.verify) return;
     let active = true;
     setBusy(true);
@@ -56,7 +60,12 @@ export default function Login({ onAuthenticated }) {
       .catch((err) => {
         if (active) setError(err.message || "This verification link is invalid or has expired.");
       })
-      .finally(() => { if (active) setBusy(false); });
+      .finally(() => {
+        if (active) {
+          setBusy(false);
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      });
     return () => { active = false; };
   }, [actionTokens.verify]);
 
