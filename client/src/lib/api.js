@@ -118,7 +118,13 @@ export const register = (data) => request("/auth/register", { method: "POST", bo
 export const verifyEmail = (token) => request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
 export const resendVerification = (email) => request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
 export const requestPasswordReset = (email) => request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
-export const resetPassword = (token, password) => request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+export const resetPassword = async (token, password) => {
+  const result = await request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+  // The server increments tokenVersion, invalidating every previously issued
+  // cookie. Clear the current UI session as soon as the reset is confirmed.
+  window.dispatchEvent(new Event("ledger:session-expired"));
+  return result;
+};
 export const fetchSession = () => request("/auth/me");
 export const logout = () => request("/auth/logout", { method: "POST" });
 
