@@ -81,6 +81,9 @@ The interface is organized like a modern digital ledger: month-based records and
 ### Accounts, navigation, and appearance
 
 - Register, sign in, restore the current session, and sign out.
+- Request password-reset links and change a password with a one-use, time-limited token; password changes invalidate previously issued sessions.
+- Optionally require email verification for new registrations. Verification links are one-use and expire after 24 hours; existing accounts remain verified for backward compatibility.
+- Use a password-strength meter and a 12-character minimum for new passwords.
 - Keep application records scoped to the signed-in user.
 - Switch between light and dark themes; the selected theme is saved in browser local storage.
 - Use the desktop sidebar, mobile top navigation, and mobile bottom navigation to move between Dashboard, Add Entry, All Entries, Budget, Savings Tracker, SIP Growth, Bonds, Obligations, and Ledger AI.
@@ -117,7 +120,7 @@ Browser
 | Client | React 19, Vite, React Router, React-Bootstrap, Bootstrap, Lucide |
 | Charts and motion | Recharts, Framer Motion, Three.js |
 | API | Node.js, Express 4, Mongoose, Zod |
-| Authentication and security | JSON Web Tokens, bcryptjs, HTTP-only cookies, Helmet, CORS, express-rate-limit |
+| Authentication and security | JSON Web Tokens, bcryptjs, HTTP-only cookies, email verification and password recovery, Helmet, CORS, express-rate-limit with MongoDB-backed counters |
 | External integrations | Gemini for Ledger AI; a server-side mutual-fund search/NAV data proxy |
 | Tests | Vitest, Supertest, mongodb-memory-server |
 | Hosting configuration | Netlify, Render, and GitHub Actions configuration files |
@@ -138,9 +141,9 @@ Ledger/
 │   └── src/
 │       ├── lib/                # CSV and payslip parsing helpers
 │       ├── middleware/         # Authentication, validation, and rate limits
-│       ├── models/             # User and finance data models
+│       ├── models/             # User, finance, and shared rate-limit counter models
 │       ├── routes/             # REST API routes
-│       ├── services/           # Auto-SIP and AI services
+│       ├── services/           # Auto-SIP, auth email delivery, and AI services
 │       ├── app.js              # Express app and middleware
 │       └── index.js            # Environment validation, DB startup, scheduler
 ├── .github/workflows/          # CI workflows
@@ -228,6 +231,10 @@ Run these from the repository root:
 | `MONGODB_MAX_CONNECTING` | No | Maximum concurrent connection attempts; the code default is `10`. |
 | `MONGODB_MAX_IDLE_TIME_MS` | No | Maximum idle connection time; the code default is `60000` ms. |
 | `SHUTDOWN_TIMEOUT_MS` | No | Graceful shutdown timeout; the code default is `30000` ms. |
+| `RESEND_API_KEY` | Required for auth email | Server-only Resend API key. Never expose it through a client environment variable. |
+| `AUTH_EMAIL_FROM` | Required for auth email | Verified sender identity, for example `Ledger <noreply@your-domain.com>`. |
+| `AUTH_PUBLIC_URL` | Recommended for auth email | Public frontend origin used to construct verification and reset links. |
+| `REQUIRE_EMAIL_VERIFICATION` | No (`false`) | Set to `true` only after sender-domain and email delivery testing; new accounts must verify before signing in. Existing users are considered verified. |
 
 ### Optional monthly Auto-SIP records
 
@@ -250,7 +257,7 @@ Application routes are prefixed with `/api`. Unless noted as public, application
 | Area | Endpoints | Purpose |
 | --- | --- | --- |
 | Health | `GET /health`, `GET /ready` | Process liveness and MongoDB readiness |
-| Authentication | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` | Create account, establish/check session, and sign out |
+| Authentication | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`, `POST /auth/verify-email`, `POST /auth/resend-verification`, `POST /auth/forgot-password`, `POST /auth/reset-password` | Register, sign in, restore session, sign out, verify email, and recover password |
 | Transactions | `GET/POST /transactions`, `PUT/DELETE /transactions/:id` | List, create, edit, and delete ledger entries |
 | Recurring transactions | `POST /transactions/generate-recurring` | Generate entries from recurring templates for a requested month |
 | CSV | `POST /transactions/import`, `GET /transactions/export` | Import or download transactions |
@@ -299,7 +306,10 @@ The repository supports a static client plus a Node API:
 
 ## Security and data handling
 
-- Passwords are stored as bcrypt hashes; the API issues a seven-day JWT in an HTTP-only cookie.
+- Passwords are stored as bcrypt hashes; new passwords must be 12–128 characters. The client provides a heuristic strength meter; it is not a breached-password database check.
+- The API issues a seven-day JWT in an HTTP-only cookie. Password-reset tokens are stored only as SHA-256 hashes, expire after one hour, are single-use, and increment `tokenVersion` so existing sessions are invalidated.
+- Email verification is opt-in (`REQUIRE_EMAIL_VERIFICATION=true`) to preserve current sign-up behavior until email delivery is configured. New verification tokens are hashed and expire after 24 hours; existing accounts default to verified.
+- Authentication email uses Resend. Set `RESEND_API_KEY`, a verified `AUTH_EMAIL_FROM`, and `AUTH_PUBLIC_URL` on the server. Verify end-to-end delivery before enabling mandatory verification.
 - Production cookies use `Secure` and `SameSite=None` for the separate client/API origins. State-changing browser requests are checked against `CLIENT_ORIGIN`.
 - Logout increments the user's token version so previously issued tokens are rejected.
 - Authenticated records are scoped to the signed-in user. Shared Ledger AI snapshots expose only their selected transcript, are read-only, use an unguessable token, and expire after seven days.
@@ -313,7 +323,7 @@ The repository supports a static client plus a Node API:
 - Ledger stores and displays financial records entered by the user. Investment values and projections are estimates; projections are scenarios, not guaranteed returns or live brokerage balances.
 - Market-data availability depends on the upstream source and network. The proxy returns a temporary-unavailable error if the source cannot be reached.
 - Auto-SIP creates database entries only. It does not buy securities, initiate payments, or guarantee a scheduler will run continuously; startup catch-up and idempotency reduce missed/duplicate ledger records.
-- Process-local rate-limit counters reset when an API process restarts. Multi-instance deployments that need shared counters should configure a shared rate-limit store.
+- Rate-limit counters are stored in MongoDB with atomic increments and a TTL index, so authentication, API, AI, and shared-chat limits are shared across API instances and survive process restarts. This adds a small MongoDB write per limited request.
 - Numeric amount representation remains compatible with existing saved data. A migration from rupees to paise must be versioned and applied separately; changing the unit in place would alter existing values.
 - Transaction list response compatibility is intentional: existing callers receive an array unless they opt into pagination.
 - Motion and decorative background effects are not required for form submission or navigation and respect reduced-motion preferences.
