@@ -38,14 +38,13 @@ export default function Login({ onAuthenticated }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(Boolean(actionTokens.verify));
   const strength = scorePassword(password);
   const strengthLabel = ["", "Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"][strength];
 
   useEffect(() => {
     if (!actionTokens.verify) return;
     let active = true;
-    setBusy(true);
     verifyEmail(actionTokens.verify)
       .then((result) => {
         if (active) {
