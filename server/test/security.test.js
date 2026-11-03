@@ -1,16 +1,15 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import crypto from "node:crypto";
-import bcrypt from "bcryptjs";
 import { createApp } from "../src/app.js";
 import { startTestDB, stopTestDB } from "./setup.js";
-import User from "../src/models/User.js";
+import RateLimitCounter from "../src/models/RateLimitCounter.js";
 
 process.env.CLIENT_ORIGIN = "http://localhost:5173";
 const app = createApp();
 
 beforeAll(startTestDB);
-afterEach(() => {
+afterEach(async () => {
+  await RateLimitCounter.deleteMany({});
   delete process.env.REQUIRE_EMAIL_VERIFICATION;
   delete process.env.RESEND_API_KEY;
   delete process.env.AUTH_EMAIL_FROM;
@@ -121,7 +120,7 @@ describe("authentication hardening", () => {
     process.env.RESEND_API_KEY = "test-provider-key";
     process.env.AUTH_EMAIL_FROM = "Ledger Test <noreply@example.com>";
     vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });
-    const existing = await request(app)
+    await request(app)
       .post("/api/auth/register")
       .send({ ...account, email: "existing-reset@example.com" })
       .expect(201);
