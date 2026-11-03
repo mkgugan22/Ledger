@@ -174,7 +174,6 @@ router.post(
       return res.status(503).json({ error: "Email delivery is not configured. Please contact support." });
     }
     const generic = { message: "If the account needs verification, a new link will be sent." };
-    if (!emailVerificationRequired()) return res.json(generic);
 
     const user = await User.findOne({
       email: req.body.email.toLowerCase().trim(),
