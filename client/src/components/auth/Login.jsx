@@ -43,10 +43,6 @@ export default function Login({ onAuthenticated }) {
   const strengthLabel = ["", "Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"][strength];
 
   useEffect(() => {
-    if (actionTokens.reset && mode === "reset" && !actionTokens.reset) {
-      setError("This password reset link is missing or invalid.");
-      return;
-    }
     if (!actionTokens.verify) return;
     let active = true;
     setBusy(true);
