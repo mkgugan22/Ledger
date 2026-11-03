@@ -36,7 +36,11 @@ async function request(path, options = {}) {
   if (!res.ok) {
     if (res.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event("ledger:session-expired"));
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed (${res.status})`);
+    const error = new Error(body.error || `Request failed (${res.status})`);
+    error.code = body.code;
+    error.status = res.status;
+    error.details = body;
+    throw error;
   }
   return res.json();
 }
