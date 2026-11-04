@@ -185,7 +185,7 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
               <Col sm={4}>
                 <Form.Group>
                   <Form.Label className="small fw-semibold text-secondary">Date (optional)</Form.Label>
-                  <Form.Control type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                  <Form.Control type="date" value={date} onChange={(e) => { const nextDate = e.target.value; setDate(nextDate); if (nextDate) setMonth(nextDate.slice(0, 7)); }} />
                 </Form.Group>
               </Col>
               <Col sm={4}>
