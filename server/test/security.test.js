@@ -67,8 +67,11 @@ describe("authentication hardening", () => {
       .expect(403);
 
     const token = tokenFromMail(mail, "verify");
-    await request(app).post("/api/auth/verify-email").send({ token }).expect(200);
-    await request(app).post("/api/auth/verify-email").send({ token }).expect(400);
+    const verificationAttempts = await Promise.all([
+      request(app).post("/api/auth/verify-email").send({ token }),
+      request(app).post("/api/auth/verify-email").send({ token }),
+    ]);
+    expect(verificationAttempts.map((response) => response.status).sort()).toEqual([200, 400]);
 
     await request(app)
       .post("/api/auth/login")
@@ -96,14 +99,11 @@ describe("authentication hardening", () => {
       .expect(200);
     const token = tokenFromMail(mail, "reset");
 
-    await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token, password: "a-new-longer-password-123" })
-      .expect(200);
-    await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token, password: "a-new-longer-password-123" })
-      .expect(400);
+    const resetAttempts = await Promise.all([
+      request(app).post("/api/auth/reset-password").send({ token, password: "a-new-longer-password-123" }),
+      request(app).post("/api/auth/reset-password").send({ token, password: "another-long-password-456" }),
+    ]);
+    expect(resetAttempts.map((response) => response.status).sort()).toEqual([200, 400]);
 
     await request(app).get("/api/auth/me").set("Cookie", cookie).expect(401);
     await request(app)
