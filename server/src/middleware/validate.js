@@ -69,7 +69,7 @@ export const transactionSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: z.number().min(0, "Amount must be zero or greater."),
     month: monthSchema,
-    date: dateSchema.optional()
+    date: dateSchema.optional(),
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
@@ -162,7 +162,7 @@ export const csvTransactionRowSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: csvNumber("Amount must be a number 0 or greater."),
     month: monthSchema,
-    date: dateSchema.optional()
+    date: dateSchema.optional(),
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
