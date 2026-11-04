@@ -32,6 +32,13 @@ function tokenFromMail(spy, parameter) {
 }
 
 describe("authentication hardening", () => {
+  it("rejects new passwords that exceed bcrypt's 72-byte input limit", async () => {
+    await request(app)
+      .post("/api/auth/register")
+      .send({ ...account, email: "long-password@example.com", password: "é".repeat(37) })
+      .expect(400);
+  });
+
   it("performs a dummy password comparison for unknown accounts", async () => {
     await request(app)
       .post("/api/auth/login")
