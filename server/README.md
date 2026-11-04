@@ -63,7 +63,7 @@ The existing sign-in and account flow remains compatible by default. To enable m
 
 Existing users are treated as verified. Verification links expire after 24 hours. Password-reset links expire after one hour. Both token types are random, single-use, and stored only as SHA-256 hashes. A successful password reset increments the user's token version and invalidates all previously issued sessions.
 
-New passwords must be between 12 and 128 characters. The client-side strength indicator is a heuristic, not a breached-password service.
+New passwords must be at least 12 characters and no more than 72 UTF-8 bytes, matching bcrypt's input limit. The client-side strength indicator is a heuristic, not a breached-password service.
 
 ## Rate limiting
 
