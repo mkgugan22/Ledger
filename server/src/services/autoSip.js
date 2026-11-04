@@ -1,5 +1,11 @@
+import { randomUUID } from "node:crypto";
 import Investment from "../models/Investment.js";
 import AutoSipRun from "../models/AutoSipRun.js";
+import {
+  acquireAutoSipSchedulerLock,
+  renewAutoSipSchedulerLock,
+  releaseAutoSipSchedulerLock,
+} from "./autoSipLock.js";
 
 // Monthly auto-SIP
 // ----------------
@@ -236,13 +242,32 @@ export async function ensureAutoSipForUser(userId, now = new Date()) {
 }
 
 let running = false;
+const LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1000;
 
 export async function runAutoSipForAllUsers(now = new Date()) {
   const cfg = getConfig();
   if (!cfg.enabled || running) return { users: 0, created: 0, removed: 0 };
 
   running = true;
+  const lockOwnerId = randomUUID();
+  let lockAcquired = false;
+  let renewTimer;
   try {
+    lockAcquired = Boolean(await acquireAutoSipSchedulerLock(lockOwnerId));
+    if (!lockAcquired) {
+      return { users: 0, created: 0, removed: 0, locked: true };
+    }
+
+    // A long catch-up run may span many users. Renew the lease periodically so
+    // another instance does not start a duplicate global scan while this one
+    // is still processing. Per-user/month unique indexes remain the final guard.
+    renewTimer = setInterval(() => {
+      renewAutoSipSchedulerLock(lockOwnerId).catch((err) => {
+        console.error("Auto SIP scheduler lease renewal failed:", err.message);
+      });
+    }, LOCK_RENEW_INTERVAL_MS);
+    renewTimer.unref();
+
     const userIds = await Investment.distinct("user", { fund: { $in: cfg.excluded } });
     let created = 0;
     let removed = 0;
@@ -257,6 +282,14 @@ export async function runAutoSipForAllUsers(now = new Date()) {
     }
     return { users: userIds.length, created, removed };
   } finally {
+    if (renewTimer) clearInterval(renewTimer);
+    if (lockAcquired) {
+      try {
+        await releaseAutoSipSchedulerLock(lockOwnerId);
+      } catch (err) {
+        console.error("Auto SIP scheduler lease release failed:", err.message);
+      }
+    }
     running = false;
   }
 }

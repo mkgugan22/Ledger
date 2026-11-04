@@ -36,7 +36,11 @@ async function request(path, options = {}) {
   if (!res.ok) {
     if (res.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event("ledger:session-expired"));
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed (${res.status})`);
+    const error = new Error(body.error || `Request failed (${res.status})`);
+    error.code = body.code;
+    error.status = res.status;
+    error.details = body;
+    throw error;
   }
   return res.json();
 }
@@ -111,6 +115,16 @@ export const removeValuation = (id) => request(`/valuations/${id}`, { method: "D
 export const warmApi = () => request("/health");
 export const login = (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) });
 export const register = (data) => request("/auth/register", { method: "POST", body: JSON.stringify(data) });
+export const verifyEmail = (token) => request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+export const resendVerification = (email) => request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
+export const requestPasswordReset = (email) => request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+export const resetPassword = async (token, password) => {
+  const result = await request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+  // The server increments tokenVersion, invalidating every previously issued
+  // cookie. Clear the current UI session as soon as the reset is confirmed.
+  window.dispatchEvent(new Event("ledger:session-expired"));
+  return result;
+};
 export const fetchSession = () => request("/auth/me");
 export const logout = () => request("/auth/logout", { method: "POST" });
 

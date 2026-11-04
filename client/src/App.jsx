@@ -350,7 +350,11 @@ export default function App() {
   return <BrowserRouter>
     <Suspense fallback={<div className="d-flex align-items-center justify-content-center py-5 text-secondary" role="status">Loading page…</div>}>
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onAuthenticated={setUser} />} />
+      <Route path="/login" element={
+        user && !["reset", "verify"].some((action) => new URLSearchParams(window.location.search).has(action))
+          ? <Navigate to="/" replace />
+          : <Login onAuthenticated={setUser} />
+      } />
       <Route path="/ledger-ai/shared/:token" element={<SharedLedgerAI />} />
       <Route element={<Protected user={user}><Layout apiError={apiError} user={user} theme={theme} onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")} onLogout={async () => { await flushPendingDeletes(); await logout().catch(() => {}); setUser(null); }} /></Protected>}>
         <Route index element={loaded ? <Dashboard {...shared} /> : <DashboardSkeleton />} />

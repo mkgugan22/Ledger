@@ -23,14 +23,14 @@ afterAll(stopTestDB);
 
 async function signUp() {
   const active = agent || request.agent(app);
-  await active.post("/api/auth/register").send({ name: "Test User", email: "test@example.com", password: "password123" }).expect(201);
+  await active.post("/api/auth/register").send({ name: "Test User", email: "test@example.com", password: "password12345" }).expect(201);
   return active;
 }
 
 describe("authentication", () => {
   it("registers, logs in, and restores the session", async () => {
     const active = await signUp();
-    await active.post("/api/auth/login").send({ email: "test@example.com", password: "password123" }).expect(200);
+    await active.post("/api/auth/login").send({ email: "test@example.com", password: "password12345" }).expect(200);
     const response = await active.get("/api/auth/me").expect(200);
     expect(response.body.user.email).toBe("test@example.com");
   });
