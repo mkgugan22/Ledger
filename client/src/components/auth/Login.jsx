@@ -162,7 +162,7 @@ export default function Login({ onAuthenticated }) {
                     <Form.Control
                       type="password"
                       minLength={mode === "login" ? 1 : 12}
-                      maxLength={128}
+                      maxLength={72}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -171,7 +171,7 @@ export default function Login({ onAuthenticated }) {
                   </div>
                   {mode !== "login" && (
                     <>
-                      <Form.Text>Use at least 12 characters. A mix of letters, numbers and symbols is recommended.</Form.Text>
+                      <Form.Text>Use 12–72 UTF-8 bytes. A mix of letters, numbers and symbols is recommended.</Form.Text>
                       <ProgressBar className="mt-2" now={(strength / 6) * 100} variant={strength < 3 ? "danger" : strength < 5 ? "warning" : "success"} aria-label={"Password strength: " + strengthLabel} />
                       <div className="small text-secondary mt-1" aria-live="polite">{password ? "Password strength: " + strengthLabel : "Password strength"}</div>
                     </>
@@ -185,7 +185,7 @@ export default function Login({ onAuthenticated }) {
                   <Form.Control
                     type="password"
                     minLength={12}
-                    maxLength={128}
+                    maxLength={72}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
