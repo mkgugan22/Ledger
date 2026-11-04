@@ -150,17 +150,21 @@ router.post(
   authRateLimit,
   validateBody(verifyEmailSchema),
   asyncHandler(async (req, res) => {
-    const user = await User.findOne({
-      emailVerificationTokenHash: hashToken(req.body.token),
-      emailVerificationExpiresAt: { $gt: new Date() },
-    }).select("+emailVerificationTokenHash +emailVerificationExpiresAt");
+    // Consume the token and verify the account in one atomic document update.
+    // A parallel request using the same token cannot also succeed.
+    const user = await User.findOneAndUpdate(
+      {
+        emailVerificationTokenHash: hashToken(req.body.token),
+        emailVerificationExpiresAt: { $gt: new Date() },
+      },
+      {
+        $set: { emailVerified: true },
+        $unset: { emailVerificationTokenHash: 1, emailVerificationExpiresAt: 1 },
+      },
+      { new: true },
+    );
 
     if (!user) return res.status(400).json({ error: "This verification link is invalid or has expired." });
-
-    user.emailVerified = true;
-    user.emailVerificationTokenHash = undefined;
-    user.emailVerificationExpiresAt = undefined;
-    await user.save();
     res.json({ verified: true, message: "Your email address is verified. You can now sign in." });
   })
 );
@@ -230,18 +234,33 @@ router.post(
   authRateLimit,
   validateBody(resetPasswordSchema),
   asyncHandler(async (req, res) => {
-    const user = await User.findOne({
-      passwordResetTokenHash: hashToken(req.body.token),
+    const tokenHash = hashToken(req.body.token);
+    const tokenQuery = {
+      passwordResetTokenHash: tokenHash,
       passwordResetExpiresAt: { $gt: new Date() },
-    }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+    };
+
+    // Avoid an expensive password hash for invalid tokens, then re-check the
+    // token in the atomic update below. Only one concurrent request can consume it.
+    if (!await User.exists(tokenQuery)) {
+      return res.status(400).json({ error: "This password reset link is invalid or has expired." });
+    }
+
+    const passwordHash = await bcrypt.hash(req.body.password, 12);
+    const user = await User.findOneAndUpdate(
+      {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: { $gt: new Date() },
+      },
+      {
+        $set: { passwordHash },
+        $unset: { passwordResetTokenHash: 1, passwordResetExpiresAt: 1 },
+        $inc: { tokenVersion: 1 },
+      },
+      { new: true },
+    );
 
     if (!user) return res.status(400).json({ error: "This password reset link is invalid or has expired." });
-
-    user.passwordHash = await bcrypt.hash(req.body.password, 12);
-    user.passwordResetTokenHash = undefined;
-    user.passwordResetExpiresAt = undefined;
-    user.tokenVersion = (user.tokenVersion || 0) + 1;
-    await user.save();
     res.json({ reset: true, message: "Your password has been updated. Please sign in again." });
   })
 );
