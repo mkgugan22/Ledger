@@ -59,6 +59,12 @@ vi.mock("../models/AutoSipRun.js", () => ({
   },
 }));
 
+vi.mock("./autoSipLock.js", () => ({
+  acquireAutoSipSchedulerLock: async (ownerId) => ownerId,
+  renewAutoSipSchedulerLock: async () => true,
+  releaseAutoSipSchedulerLock: async () => true,
+}));
+
 const LIC = "LIC MF Consumption Fund - Direct Plan - Growth";
 const manual = (user, fund, extra = {}) => ({ _id: db.nextId++, user, fund, type: "SIP", monthly: 1000, invested: 5000, currentValue: 6000, date: "2026-09-05", assetClass: "Equity", source: "Manual entry", ...extra });
 const seedFour = (user = "u1") => db.inv.push(manual(user, LIC), manual(user, "Fund B"), manual(user, "Fund C", { assetClass: "Debt" }), manual(user, "Fund D"));
