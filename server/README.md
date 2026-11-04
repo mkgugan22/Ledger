@@ -46,9 +46,9 @@ All paths below are prefixed with \`/api\`. Unless stated otherwise, data routes
 | Market data | \`GET /market/search?q=...\`, \`GET /market/:schemeCode\` | Search schemes and fetch market/NAV data |
 | Documents | \`POST /documents/parse-payslip\` | Extract suggestions from text-based PDF payslips |
 | Ledger AI | \`POST /ai/chat\`, \`GET /ai/history\` | Stream AI answers and retrieve chat history |
-| AI sharing | \`POST /ai/share\`, public \`GET /ai/share/:token\` | Create and read an expiring read-only transcript snapshot |
+| AI sharing | `POST /ai/share`, public `GET /ai/share/:token`, authenticated `GET /ai/shares`, `DELETE /ai/shares/:id` | Create, list, read, and revoke expiring read-only transcript snapshots |
 
-Transaction listing preserves the legacy plain-array response when called without query parameters. Pagination can be requested with \`?page=1&limit=200\`; transaction date filters include \`month\` or \`from\` and \`to\`.
+Transaction listing preserves the legacy plain-array response when called without query parameters. Pagination can be requested with `?page=1&limit=200`; transaction date filters include `month` or `from` and `to`. A supplied transaction date must be a valid calendar date in the same month as its `month` field.
 
 ## Authentication configuration
 

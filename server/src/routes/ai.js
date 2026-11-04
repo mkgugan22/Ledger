@@ -1,5 +1,6 @@
 import { Router } from "express";
 import crypto from "node:crypto";
+import mongoose from "mongoose";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateBody, ledgerAiChatSchema } from "../middleware/validate.js";
 import { buildLedgerSnapshot } from "../services/ai/ledgerData.js";
@@ -73,6 +74,46 @@ router.get(
   })
 );
 
+router.get(
+  "/shares",
+  asyncHandler(async (req, res) => {
+    const shares = await AiChatShare.find({
+      user: req.userId,
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select("createdAt expiresAt")
+      .lean();
+
+    res.json(shares.map((share) => ({
+      id: String(share._id),
+      createdAt: share.createdAt,
+      expiresAt: share.expiresAt,
+    })));
+  })
+);
+
+router.delete(
+  "/shares/:id",
+  asyncHandler(async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ error: "This shared conversation is unavailable or has expired." });
+    }
+
+    const revoked = await AiChatShare.findOneAndDelete({
+      _id: req.params.id,
+      user: req.userId,
+    });
+
+    if (!revoked) {
+      return res.status(404).json({ error: "This shared conversation is unavailable or has expired." });
+    }
+
+    res.json({ revoked: true });
+  })
+);
+
 router.post(
   "/share",
   asyncHandler(async (req, res) => {
@@ -108,8 +149,8 @@ router.post(
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    await AiChatShare.create({ tokenHash, messages, expiresAt });
-    res.status(201).json({ token, expiresAt });
+    const share = await AiChatShare.create({ user: req.userId, tokenHash, messages, expiresAt });
+    res.status(201).json({ id: String(share._id), token, createdAt: share.createdAt, expiresAt: share.expiresAt });
   })
 );
 
