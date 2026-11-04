@@ -248,7 +248,7 @@ Auto-SIP is enabled by default outside test mode. It runs on API startup and hou
 | `AUTO_SIP_START_MONTH` | `2026-11` | First eligible month in `YYYY-MM` format. Earlier months are not generated. |
 | `AUTO_SIP_EXCLUDED_FUNDS` | `LIC MF Consumption` | Comma-separated fund names that qualify a user for the scheduler and are excluded from auto-created records. Matching ignores case and tolerates whitespace differences. |
 
-The feature is a record-keeping convenience, not an investment order. Per-fund schedules with independent amounts or dates are not part of the current implementation.
+The feature is a record-keeping convenience, not an investment order. Multiple API instances coordinate the hourly scan through a MongoDB-backed lease, while unique user/fund/month indexes remain the final duplicate-prevention guard. Per-fund schedules with independent amounts or dates are not part of the current implementation.
 
 ## API overview
 
