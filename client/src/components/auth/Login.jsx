@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Form, Alert, ProgressBar } from "react-bootstrap";
-import { Landmark, LockKeyhole } from "lucide-react";
+import { ArrowLeft, KeyRound, Landmark, LockKeyhole, MailCheck, UserRoundPlus } from "lucide-react";
 import {
   login,
   register,
@@ -206,16 +206,35 @@ export default function Login({ onAuthenticated }) {
             </Form>
           )}
 
-          <div className="mt-3 d-grid gap-1">
+          <div className="lg-auth-links mt-4">
             {mode === "login" && (
               <>
-                <button type="button" className="btn btn-link btn-sm" onClick={() => switchMode("forgot")}>Forgot password?</button>
-                <button type="button" className="btn btn-link btn-sm" onClick={() => switchMode("resend")}>Resend verification email</button>
-                <button type="button" className="btn btn-link btn-sm" onClick={() => switchMode("register")}>New to Ledger? Create an account</button>
+                <div className="lg-auth-quick-actions">
+                  <button type="button" className="lg-auth-action-card" onClick={() => switchMode("forgot")}>
+                    <span className="lg-auth-action-icon"><KeyRound size={17} /></span>
+                    <span className="lg-auth-action-copy">
+                      <strong>Forgot password?</strong>
+                      <small>Get a password reset link</small>
+                    </span>
+                  </button>
+                  <button type="button" className="lg-auth-action-card" onClick={() => switchMode("resend")}>
+                    <span className="lg-auth-action-icon"><MailCheck size={17} /></span>
+                    <span className="lg-auth-action-copy">
+                      <strong>Verify your email</strong>
+                      <small>Resend the verification link</small>
+                    </span>
+                  </button>
+                </div>
+                <button type="button" className="lg-auth-create-link" onClick={() => switchMode("register")}>
+                  <UserRoundPlus size={17} />
+                  <span>New to Ledger? <strong>Create an account</strong></span>
+                </button>
               </>
             )}
             {mode !== "login" && (
-              <button type="button" className="btn btn-link btn-sm" onClick={() => switchMode("login")}>Back to sign in</button>
+              <button type="button" className="lg-auth-back-link" onClick={() => switchMode("login")}>
+                <ArrowLeft size={16} /> Back to sign in
+              </button>
             )}
           </div>
         </Card.Body>
