@@ -290,7 +290,7 @@ npm run lint
 npm run build:client
 ```
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` uses lockfile-based clean installs, lint, server/client tests, and a production client build. Dependabot checks npm dependencies and GitHub Actions weekly.
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs lockfile-based clean installs for the root and client, reconciles the server lockfile in the CI workspace, then runs lint, tests, and a production client build. Dependabot checks npm dependencies and GitHub Actions weekly.
 
 ## Deployment
 

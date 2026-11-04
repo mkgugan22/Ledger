@@ -69,7 +69,7 @@ export const transactionSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: z.number().min(0, "Amount must be zero or greater."),
     month: monthSchema,
-    date: dateSchema.optional(),
+    date: dateSchema.optional()
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
@@ -162,7 +162,7 @@ export const csvTransactionRowSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: csvNumber("Amount must be a number 0 or greater."),
     month: monthSchema,
-    date: dateSchema.optional(),
+    date: dateSchema.optional()
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
@@ -182,18 +182,15 @@ export const csvTransactionRowSchema = z
     paymentMethod: data.paymentMethod,
     note: data.note,
     recurring: data.recurring,
-    frequency: data.recurring ? "monthly" : undefined,
+    frequency: data.recurring ? data.frequency || "monthly" : undefined,
   }));
 
-const paginationQuerySchema = z.object({
-  page: pageSchema.optional(),
-  limit: limitSchema.optional(),
-}).strict();
-
-export const transactionListQuerySchema = paginationQuerySchema.extend({
+export const transactionListQuerySchema = z.object({
   month: monthSchema.optional(),
   from: monthSchema.optional(),
   to: monthSchema.optional(),
+  page: pageSchema.optional(),
+  limit: limitSchema.optional(),
 }).strict().refine((value) => !(value.month && (value.from || value.to)), { message: "Use month or from/to, not both." }).refine((value) => !value.from || !value.to || value.from <= value.to, { message: "from must not be after to." });
 
 export const investmentListQuerySchema = z.object({
