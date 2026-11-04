@@ -78,6 +78,8 @@ Default limits:
 
 The AI rate-limit response includes the configured limit, remaining requests, and reset time.
 
+The global Auto-SIP scan uses a renewable MongoDB lease so only one API instance performs the scheduler-wide user scan at a time. The lease expires automatically if an instance stops, and per-user/month unique indexes preserve idempotency if a lease expires during a run.
+
 ## Security notes
 
 - Do not commit \`.env\` or expose server secrets in client variables.
