@@ -7,7 +7,7 @@ export function validateEnv() {
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
 
   if (process.env.REQUIRE_EMAIL_VERIFICATION === "true") {
-    if (!process.env.RESEND_API_KEY) missing.push("RESEND_API_KEY");
+    if (!process.env.BREVO_API_KEY) missing.push("BREVO_API_KEY");
     if (!process.env.AUTH_EMAIL_FROM) missing.push("AUTH_EMAIL_FROM");
     if (!process.env.AUTH_PUBLIC_URL && !process.env.CLIENT_ORIGIN) missing.push("AUTH_PUBLIC_URL or CLIENT_ORIGIN");
   }
