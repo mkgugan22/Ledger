@@ -10,4 +10,4 @@ const autoSipLockSchema = new mongoose.Schema({
 
 autoSipLockSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export default mongoose.model("AutoSipLock", autoSipLockSchema);
+export default mongoose.models.AutoSipLock || mongoose.model("AutoSipLock", autoSipLockSchema);
