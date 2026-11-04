@@ -25,6 +25,23 @@ export function validateQuery(schema) {
 }
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must be in YYYY-MM format.");
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format.")
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, "Date must be a valid calendar date.");
+
+function validateTransactionMonth(data, context) {
+  if (data.date && data.date.slice(0, 7) !== data.month) {
+    context.addIssue({
+      code: "custom",
+      path: ["date"],
+      message: "Entry date must fall within the selected month.",
+    });
+  }
+}
 // Do not default these here: routes use the absence of page/limit to preserve
 // their legacy plain-array response. Defaults are applied only after a caller
 // explicitly asks for a paginated response.
@@ -52,7 +69,7 @@ export const transactionSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: z.number().min(0, "Amount must be zero or greater."),
     month: monthSchema,
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format.").optional(),
+    date: dateSchema.optional(),
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
@@ -60,6 +77,7 @@ export const transactionSchema = z
     recurring: z.boolean().optional().default(false),
     frequency: z.enum(["monthly"]).optional(),
   })
+  .superRefine(validateTransactionMonth)
   .transform((data) => ({
     ...data,
     frequency: data.recurring ? data.frequency || "monthly" : undefined,
@@ -144,7 +162,7 @@ export const csvTransactionRowSchema = z
     type: z.string().trim().min(1, "Type is required."),
     amount: csvNumber("Amount must be a number 0 or greater."),
     month: monthSchema,
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format.").optional(),
+    date: dateSchema.optional(),
     account: z.string().trim().max(120).optional().default(""),
     merchant: z.string().trim().max(160).optional().default(""),
     paymentMethod: z.string().trim().max(80).optional().default(""),
@@ -152,6 +170,7 @@ export const csvTransactionRowSchema = z
     recurring: csvBoolean.optional().default(false),
     frequency: z.string().trim().optional().default(""),
   })
+  .superRefine(validateTransactionMonth)
   .transform((data) => ({
     mode: data.mode,
     type: data.type,

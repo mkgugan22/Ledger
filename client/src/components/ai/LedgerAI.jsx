@@ -3,7 +3,7 @@ import { Alert, Button, Form, Spinner } from "react-bootstrap";
 import { Check, Copy, LockKeyhole, RotateCcw, Send, Share2, Sparkles } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import LedgerAssistantAvatar from "./LedgerAssistantAvatar.jsx";
-import { chatWithLedgerAI, createLedgerAIShare, fetchLedgerAIHistory } from "../../lib/api.js";
+import { chatWithLedgerAI, createLedgerAIShare, fetchLedgerAIHistory, fetchLedgerAIShares, revokeLedgerAIShare } from "../../lib/api.js";
 
 const STARTER_QUESTIONS = [
   "How did I do with my budget this month?",
@@ -100,6 +100,8 @@ export default function LedgerAI() {
   const [error, setError] = useState("");
   const [shareNotice, setShareNotice] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [shares, setShares] = useState([]);
+  const [revokingShareId, setRevokingShareId] = useState(null);
   const messagesEnd = useRef(null);
 
   // Restore the persisted exchange history. Existing Mongo createdAt values
@@ -108,16 +110,19 @@ export default function LedgerAI() {
     let active = true;
 
     (async () => {
-      try {
-        const { messages: past } = await fetchLedgerAIHistory();
-        if (active && past?.length) {
-          setMessages((current) => [current[0], ...past]);
-        }
-      } catch {
-        // A history failure must not prevent a new chat.
-      } finally {
-        if (active) setLoadingHistory(false);
+      const [historyResult, sharesResult] = await Promise.allSettled([
+        fetchLedgerAIHistory(),
+        fetchLedgerAIShares(),
+      ]);
+
+      if (!active) return;
+      if (historyResult.status === "fulfilled" && historyResult.value.messages?.length) {
+        setMessages((current) => [current[0], ...historyResult.value.messages]);
       }
+      if (sharesResult.status === "fulfilled") {
+        setShares(Array.isArray(sharesResult.value) ? sharesResult.value : []);
+      }
+      setLoadingHistory(false);
     })();
 
     return () => {
@@ -175,8 +180,9 @@ export default function LedgerAI() {
         content: item.content,
         createdAt: item.createdAt || new Date().toISOString(),
       }));
-      const { token } = await createLedgerAIShare(transcript);
-      const shareUrl = `${window.location.origin}/ledger-ai/shared/${token}`;
+      const share = await createLedgerAIShare(transcript);
+      setShares((current) => [share, ...current.filter((item) => item.id !== share.id)].slice(0, 20));
+      const shareUrl = `${window.location.origin}/ledger-ai/shared/${share.token}`;
       await copyText(shareUrl);
       setShareNotice("Share link copied. Anyone with the link can view this snapshot for 7 days.");
     } catch (shareError) {
@@ -186,7 +192,23 @@ export default function LedgerAI() {
     }
   }
 
-  // Clear/New chat remains UI-only. No chat log or share snapshot is deleted.
+  async function revokeShare(id) {
+    if (revokingShareId) return;
+    setRevokingShareId(id);
+    setError("");
+    setShareNotice("");
+    try {
+      await revokeLedgerAIShare(id);
+      setShares((current) => current.filter((item) => item.id !== id));
+      setShareNotice("The shared link has been revoked.");
+    } catch (revokeError) {
+      setError(revokeError.message || "The shared link could not be revoked.");
+    } finally {
+      setRevokingShareId(null);
+    }
+  }
+
+  // Clearing the visible chat does not revoke previously shared snapshots.
   function reset() {
     if (sending || sharing) return;
     setMessages([{ ...WELCOME, createdAt: new Date().toISOString() }]);
@@ -305,6 +327,27 @@ export default function LedgerAI() {
 
           {error && <Alert variant="danger" className="mx-3 mb-0 py-2 small">{error}</Alert>}
           {shareNotice && <Alert variant="success" className="mx-3 mb-0 py-2 small">{shareNotice}</Alert>}
+          {shares.length > 0 && (
+            <div className="mx-3 mb-3 p-3 border rounded">
+              <div className="fw-semibold small mb-2">Active shared links</div>
+              {shares.map((share) => (
+                <div key={share.id} className="d-flex align-items-center justify-content-between gap-3 py-2 border-top">
+                  <div className="small text-secondary">
+                    <div>Created {formatMessageTimestamp(share.createdAt)}</div>
+                    <div>Expires {formatMessageTimestamp(share.expiresAt)}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    disabled={revokingShareId !== null}
+                    onClick={() => revokeShare(share.id)}
+                  >
+                    {revokingShareId === share.id ? <Spinner animation="border" size="sm" /> : "Revoke"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Form className="lg-ai-composer" onSubmit={(event) => {
             event.preventDefault();

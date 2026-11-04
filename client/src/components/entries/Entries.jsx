@@ -48,7 +48,7 @@ export default function Entries({
     updateTransaction(editingId, {
       type: draft.type,
       amount: Number(draft.amount),
-      month: draft.month,
+      month: draft.date ? draft.date.slice(0, 7) : draft.month,
       mode: draft.mode,
       date: draft.date || undefined,
       account: draft.account || "",
@@ -162,7 +162,7 @@ export default function Entries({
                           </td>
                           <td><Form.Control size="sm" value={draft.type} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))} /></td>
                           <td className="d-none d-md-table-cell">
-                            <Form.Control size="sm" type="date" value={draft.date || `${draft.month}-01`} onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))} />
+                            <Form.Control size="sm" type="date" value={draft.date || `${draft.month}-01`} onChange={(e) => { const date = e.target.value; setDraft((d) => ({ ...d, date, ...(date ? { month: date.slice(0, 7) } : {}) })); }} />
                           </td>
                           <td className="text-end">
                             <Form.Control size="sm" type="number" value={draft.amount} onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))} className="font-mono text-end" />

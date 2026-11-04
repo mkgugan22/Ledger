@@ -290,7 +290,7 @@ npm run lint
 npm run build:client
 ```
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` runs the repository's configured CI checks.
+The GitHub Actions workflow in `.github/workflows/ci.yml` installs dependencies from the declared package manifests, then runs lint, server/client tests, and a production client build. Dependabot checks npm dependencies and GitHub Actions weekly.
 
 ## Deployment
 

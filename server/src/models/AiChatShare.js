@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const aiChatShareSchema = new mongoose.Schema(
   {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     tokenHash: { type: String, required: true, unique: true, index: true },
     messages: [{
       role: { type: String, enum: ["user", "assistant"], required: true },

@@ -145,6 +145,8 @@ export const removeBudget = (id) => request(`/budgets/${id}`, { method: "DELETE"
 export const fetchLedgerAIHistory = () => request("/ai/history");
 export const createLedgerAIShare = (messages) =>
   request("/ai/share", { method: "POST", body: JSON.stringify({ messages }) });
+export const fetchLedgerAIShares = () => request("/ai/shares");
+export const revokeLedgerAIShare = (id) => request(`/ai/shares/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const fetchSharedLedgerAIChat = (token) =>
   request(`/ai/share/${encodeURIComponent(token)}`);
 

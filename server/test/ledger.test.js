@@ -51,8 +51,14 @@ describe("ledger workflows", () => {
   it("validates, creates, filters, updates, and deletes a transaction", async () => {
     const active = await signUp();
     await active.post("/api/transactions").send({ ...entry, month: "2026-99" }).expect(400);
+    await active.post("/api/transactions").send({ ...entry, date: "2026-09-01" }).expect(400);
+    await active.post("/api/transactions").send({ ...entry, month: "2026-02", date: "2026-02-30" }).expect(400);
     const created = await active.post("/api/transactions").send(entry).expect(201);
-    await active.get("/api/transactions?month=2026-08&page=1&limit=1").expect(200).expect((res) => expect(res.body.total).toBe(1));
+    await active.get("/api/transactions").expect(200).expect((res) => expect(Array.isArray(res.body)).toBe(true));
+    await active.get("/api/transactions?month=2026-08&page=1&limit=1").expect(200).expect((res) => {
+      expect(res.body).toMatchObject({ page: 1, limit: 1, total: 1, totalPages: 1 });
+      expect(res.body.items).toHaveLength(1);
+    });
     await active.get("/api/transactions?month=2026-08&from=2026-07").expect(400);
     await active.put(`/api/transactions/${created.body._id}`).send({ ...entry, amount: 1400 }).expect(200);
     await active.delete(`/api/transactions/${created.body._id}`).expect(200);
@@ -63,8 +69,8 @@ describe("ledger workflows", () => {
     await active.post("/api/transactions").send({ ...entry, recurring: true }).expect(201);
     await active.post("/api/transactions/generate-recurring").send({ month: "2026-09" }).expect(201).expect((res) => expect(res.body.created).toHaveLength(1));
     await active.post("/api/transactions/generate-recurring").send({ month: "2026-09" }).expect(201).expect((res) => expect(res.body.created).toHaveLength(0));
-    const imported = await active.post("/api/transactions/import").send({ csv: "mode,type,amount,month\nNeeds,Food,200,2026-09\nNeeds,Bad,nope,2026-09" }).expect(207);
-    expect(imported.body).toMatchObject({ imported: 1, failed: 1 });
+    const imported = await active.post("/api/transactions/import").send({ csv: "mode,type,amount,month,date\nNeeds,Food,200,2026-09,2026-09-12\nNeeds,Bad,nope,2026-09,2026-09-13\nNeeds,Mismatch,120,2026-09,2026-10-01" }).expect(207);
+    expect(imported.body).toMatchObject({ imported: 1, failed: 2 });
   });
 
   it("upserts a monthly budget", async () => {
@@ -84,6 +90,7 @@ describe("ledger workflows", () => {
 
     const created = await active.post("/api/ai/share").send({ messages }).expect(201);
     expect(created.body.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(created.body.id).toMatch(/^[a-f0-9]{24}$/i);
     expect(new Date(created.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
 
     // A fresh, unauthenticated client can only read the explicitly shared snapshot.
@@ -98,6 +105,37 @@ describe("ledger workflows", () => {
       { $set: { expiresAt: new Date(Date.now() - 1000) } },
     );
     await request(app).get(`/api/ai/share/${created.body.token}`).expect(404);
+  });
+
+  it("lets an owner revoke a share link but not another user's link", async () => {
+    const owner = await signUp();
+    const created = await owner.post("/api/ai/share").send({
+      messages: [
+        { role: "user", content: "Show my recent spending.", createdAt: new Date().toISOString() },
+        { role: "assistant", content: "Here is your spending summary.", createdAt: new Date().toISOString() },
+      ],
+    }).expect(201);
+
+    const other = request.agent(app);
+    await other.post("/api/auth/register").send({
+      name: "Other User",
+      email: "other@example.com",
+      password: "anotherpassword123",
+    }).expect(201);
+
+    await owner.get("/api/ai/shares").expect(200).expect((res) => {
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe(created.body.id);
+    });
+    await other.get("/api/ai/shares").expect(200).expect((res) => expect(res.body).toHaveLength(0));
+    await other.delete(`/api/ai/shares/${created.body.id}`).expect(404);
+    await request(app).get(`/api/ai/share/${created.body.token}`).expect(200);
+
+    await owner.delete(`/api/ai/shares/${created.body.id}`).expect(200).expect((res) => {
+      expect(res.body).toEqual({ revoked: true });
+    });
+    await request(app).get(`/api/ai/share/${created.body.token}`).expect(404);
+    await owner.get("/api/ai/shares").expect(200).expect((res) => expect(res.body).toHaveLength(0));
   });
 
   it("keeps Ledger AI authenticated and validates its body", async () => {
