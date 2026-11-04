@@ -1,7 +1,12 @@
-const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+const EMAILJS_ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send";
 
 export function isAuthEmailConfigured() {
-  return Boolean(process.env.BREVO_API_KEY && process.env.AUTH_EMAIL_FROM);
+  return Boolean(
+    process.env.EMAILJS_SERVICE_ID &&
+    process.env.EMAILJS_TEMPLATE_ID &&
+    process.env.EMAILJS_PUBLIC_KEY &&
+    process.env.EMAILJS_PRIVATE_KEY
+  );
 }
 
 export function buildAuthActionUrl(action, token) {
@@ -9,15 +14,6 @@ export function buildAuthActionUrl(action, token) {
   if (!configuredUrl) throw new Error("AUTH_PUBLIC_URL or CLIENT_ORIGIN must be configured.");
   const baseUrl = configuredUrl.trim().replace(/\/+$/, "");
   return baseUrl + "/login?" + action + "=" + encodeURIComponent(token);
-}
-
-function getSender() {
-  const configuredSender = (process.env.AUTH_EMAIL_FROM || "").trim();
-  const namedSender = configuredSender.match(/^(.*?)\s*<([^<>]+)>$/);
-  if (namedSender) {
-    return { name: namedSender[1].trim() || "Ledger", email: namedSender[2].trim() };
-  }
-  return { email: configuredSender };
 }
 
 export async function sendAuthEmail({ to, subject, html }) {
@@ -29,20 +25,24 @@ export async function sendAuthEmail({ to, subject, html }) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(BREVO_ENDPOINT, {
+    const response = await fetch(EMAILJS_ENDPOINT, {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
       body: JSON.stringify({
-        sender: getSender(),
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
+        service_id: process.env.EMAILJS_SERVICE_ID,
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
+        user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
+        template_params: {
+          to_email: to,
+          subject,
+          html_content: html,
+        },
       }),
       signal: controller.signal,
     });
@@ -50,7 +50,7 @@ export async function sendAuthEmail({ to, subject, html }) {
     if (!response.ok) {
       // Provider response bodies may contain account/configuration details.
       // Keep them out of API responses and application logs.
-      throw new Error("Transactional email provider rejected the message.");
+      throw new Error("Email delivery provider rejected the message.");
     }
     return true;
   } catch (error) {
