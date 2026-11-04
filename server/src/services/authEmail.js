@@ -1,7 +1,7 @@
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
 export function isAuthEmailConfigured() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.AUTH_EMAIL_FROM);
+  return Boolean(process.env.BREVO_API_KEY && process.env.AUTH_EMAIL_FROM);
 }
 
 export function buildAuthActionUrl(action, token) {
@@ -9,6 +9,15 @@ export function buildAuthActionUrl(action, token) {
   if (!configuredUrl) throw new Error("AUTH_PUBLIC_URL or CLIENT_ORIGIN must be configured.");
   const baseUrl = configuredUrl.trim().replace(/\/+$/, "");
   return baseUrl + "/login?" + action + "=" + encodeURIComponent(token);
+}
+
+function getSender() {
+  const configuredSender = (process.env.AUTH_EMAIL_FROM || "").trim();
+  const namedSender = configuredSender.match(/^(.*?)\s*<([^<>]+)>$/);
+  if (namedSender) {
+    return { name: namedSender[1].trim() || "Ledger", email: namedSender[2].trim() };
+  }
+  return { email: configuredSender };
 }
 
 export async function sendAuthEmail({ to, subject, html }) {
@@ -20,26 +29,28 @@ export async function sendAuthEmail({ to, subject, html }) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(RESEND_ENDPOINT, {
+    const response = await fetch(BREVO_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: "Bearer " + process.env.RESEND_API_KEY,
+        "api-key": process.env.BREVO_API_KEY,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        from: process.env.AUTH_EMAIL_FROM,
-        to: [to],
+        sender: getSender(),
+        to: [{ email: to }],
         subject,
-        html,
+        htmlContent: html,
       }),
       signal: controller.signal,
     });
+
     if (!response.ok) {
-      // Do not expose provider response bodies, which can contain account or
-      // configuration details, to the end user.
-      throw new Error("Authentication email provider rejected the message.");
+      // Provider response bodies may contain account/configuration details.
+      // Keep them out of API responses and application logs.
+      throw new Error("Transactional email provider rejected the message.");
     }
     return true;
   } catch (error) {
