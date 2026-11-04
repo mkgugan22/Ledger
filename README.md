@@ -83,7 +83,7 @@ The interface is organized like a modern digital ledger: month-based records and
 - Register, sign in, restore the current session, and sign out.
 - Request password-reset links and change a password with a one-use, time-limited token; password changes invalidate previously issued sessions.
 - Optionally require email verification for new registrations. Verification links are one-use and expire after 24 hours; existing accounts remain verified for backward compatibility.
-- Use a password-strength meter and a 12-character minimum for new passwords.
+- Use a password-strength meter and a 12-character minimum; new passwords are capped at 72 UTF-8 bytes to match bcrypt's input limit.
 - Keep application records scoped to the signed-in user.
 - Switch between light and dark themes; the selected theme is saved in browser local storage.
 - Use the desktop sidebar, mobile top navigation, and mobile bottom navigation to move between Dashboard, Add Entry, All Entries, Budget, Savings Tracker, SIP Growth, Bonds, Obligations, and Ledger AI.
@@ -306,7 +306,7 @@ The repository supports a static client plus a Node API:
 
 ## Security and data handling
 
-- Passwords are stored as bcrypt hashes; new passwords must be 12–128 characters. The client provides a heuristic strength meter; it is not a breached-password database check.
+- Passwords are stored as bcrypt hashes; new passwords must be at least 12 characters and no more than 72 UTF-8 bytes (bcrypt's input limit). The client provides a heuristic strength meter; it is not a breached-password database check.
 - The API issues a seven-day JWT in an HTTP-only cookie. Password-reset tokens are stored only as SHA-256 hashes, expire after one hour, are single-use, and increment `tokenVersion` so existing sessions are invalidated.
 - Email verification is opt-in (`REQUIRE_EMAIL_VERIFICATION=true`) to preserve current sign-up behavior until email delivery is configured. New verification tokens are hashed and expire after 24 hours; existing accounts default to verified.
 - Authentication email uses Resend. Set `RESEND_API_KEY`, a verified `AUTH_EMAIL_FROM`, and `AUTH_PUBLIC_URL` on the server. Verify end-to-end delivery before enabling mandatory verification.
