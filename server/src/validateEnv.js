@@ -7,8 +7,10 @@ export function validateEnv() {
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
 
   if (process.env.REQUIRE_EMAIL_VERIFICATION === "true") {
-    if (!process.env.BREVO_API_KEY) missing.push("BREVO_API_KEY");
-    if (!process.env.AUTH_EMAIL_FROM) missing.push("AUTH_EMAIL_FROM");
+    if (!process.env.EMAILJS_SERVICE_ID) missing.push("EMAILJS_SERVICE_ID");
+    if (!process.env.EMAILJS_TEMPLATE_ID) missing.push("EMAILJS_TEMPLATE_ID");
+    if (!process.env.EMAILJS_PUBLIC_KEY) missing.push("EMAILJS_PUBLIC_KEY");
+    if (!process.env.EMAILJS_PRIVATE_KEY) missing.push("EMAILJS_PRIVATE_KEY");
     if (!process.env.AUTH_PUBLIC_URL && !process.env.CLIENT_ORIGIN) missing.push("AUTH_PUBLIC_URL or CLIENT_ORIGIN");
   }
 
