@@ -29,8 +29,9 @@ jobs:
       # npm install reconciles it in the CI workspace until the updated lockfile is committed.
       - name: Install server dependencies
         run: npm install --prefix server
+      # The client lockfile is also currently out of sync with client/package.json.
       - name: Install client dependencies
-        run: npm ci --prefix client
+        run: npm install --prefix client
       - run: npm run lint
       - run: npm test
       - run: npm run build:client

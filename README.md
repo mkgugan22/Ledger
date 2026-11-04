@@ -271,9 +271,9 @@ Application routes are prefixed with `/api`. Unless noted as public, application
 | Market data | `GET /market/search?q=...`, `GET /market/:schemeCode` | Mutual-fund scheme search and scheme/NAV data proxy |
 | Payslips | `POST /documents/parse-payslip` | Extract a suggested salary entry from a text-based PDF |
 | Ledger AI | `POST /ai/chat`, `GET /ai/history` | Stream an answer and retrieve successful chat history |
-| Shared AI chat | `POST /ai/share`, `GET /ai/share/:token`, `GET /ai/shares`, `DELETE /ai/shares/:id` | Create, read, list, and revoke an expiring read-only snapshot; token reads are public |
+| Shared AI chat | `POST /ai/share`, `GET /ai/share/:token` | Create an expiring read-only snapshot; token read endpoint is public |
 
-Transaction listing returns the existing plain-array response when no query parameters are supplied. Pagination can be requested with `?page=1&limit=200`; date filters include `month`, or `from` and `to` where supported. Transaction dates must be valid calendar dates and must belong to the submitted `month`; the add/edit forms keep these fields synchronised.
+Transaction listing returns the existing plain-array response when no query parameters are supplied. Pagination can be requested with `?page=1&limit=200`; date filters include `month`, or `from` and `to` where supported.
 
 ## Testing and maintenance
 
@@ -290,7 +290,7 @@ npm run lint
 npm run build:client
 ```
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` runs lockfile-based clean installs for the root and client, reconciles the server lockfile in the CI workspace, then runs lint, tests, and a production client build. Dependabot checks npm dependencies and GitHub Actions weekly.
+The GitHub Actions workflow in `.github/workflows/ci.yml` installs dependencies from the declared package manifests, then runs lint, server/client tests, and a production client build. Dependabot checks npm dependencies and GitHub Actions weekly.
 
 ## Deployment
 
