@@ -26,7 +26,8 @@ const account = {
 
 function tokenFromMail(spy, parameter) {
   const body = JSON.parse(spy.mock.calls.at(-1)[1].body);
-  const url = body.html.match(new RegExp(parameter + "=([A-Za-z0-9_-]+)"))?.[1];
+  const html = body.htmlContent || body.html || "";
+  const url = html.match(new RegExp(parameter + "=([A-Za-z0-9_-]+)"))?.[1];
   expect(url).toBeTruthy();
   return url;
 }
