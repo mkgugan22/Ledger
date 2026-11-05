@@ -98,7 +98,7 @@ export default function App() {
   const pendingDeletes = useRef(new Map());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [theme, setTheme] = useState(() => localStorage.getItem("ledger-theme") || "light");
-  const [tourOpen, setTourOpen] = useState(false);
+  const [tourDismissedEmail, setTourDismissedEmail] = useState("");
 
   const transactions = useMemo(() => withoutHidden(allTransactions, hiddenIds), [allTransactions, hiddenIds]);
   const valuations = useMemo(() => withoutHidden(allValuations, hiddenIds), [allValuations, hiddenIds]);
@@ -109,19 +109,18 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("ledger-theme", theme); }, [theme]);
   useEffect(() => { const expire = () => setUser(null); window.addEventListener("ledger:session-expired", expire); return () => window.removeEventListener("ledger:session-expired", expire); }, []);
   useEffect(() => { fetchSession().then((result) => setUser(result.user)).catch(() => {}).finally(() => setAuthChecked(true)); }, []);
-  useEffect(() => {
-    if (!user?.email) { setTourOpen(false); return; }
-    let localCompleted = false;
-    try { localCompleted = localStorage.getItem(`ledger-tour-completed:${user.email.toLowerCase()}`) === "1"; } catch { /* The server timestamp remains authoritative. */ }
-    setTourOpen(!user.productTourCompletedAt && !localCompleted);
-  }, [user?.email, user?.productTourCompletedAt]);
+  const tourOpen = useMemo(() => {
+    const email = user?.email?.toLowerCase();
+    if (!email || user.productTourCompletedAt || tourDismissedEmail === email) return false;
+    try { return localStorage.getItem(`ledger-tour-completed:${email}`) !== "1"; } catch { return true; }
+  }, [user?.email, user?.productTourCompletedAt, tourDismissedEmail]);
 
   const finishProductTour = useCallback(async () => {
     const email = user?.email?.toLowerCase();
     if (email) {
       try { localStorage.setItem(`ledger-tour-completed:${email}`, "1"); } catch { /* Server timestamp still records completion. */ }
     }
-    setTourOpen(false);
+    if (email) setTourDismissedEmail(email);
     try {
       const result = await completeProductTour();
       setUser((current) => current?.email?.toLowerCase() === email
