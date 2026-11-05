@@ -671,7 +671,6 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   .lg-entry-mobile-card { padding: .8rem; }
   .lg-entry-mobile-actions .btn { min-height: 40px; }
 }
-
 /* On-demand project tour launch controls. */
 .lg-mobile-tour-trigger {
   min-height: 36px;
