@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { MotionConfig } from "framer-motion";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./index.css";
+import "./lib/motion/InteractiveLedgerCompanion.css";
 import App from "./App.jsx";
 import { ToastProvider } from "./lib/motion/ToastProvider.jsx";
 

@@ -163,7 +163,7 @@ export default function Login({ onAuthenticated }) {
       <Card className="lg-auth-card shadow-sm" style={{ position: "relative", zIndex: 1 }}>
         <Card.Body className="p-4 p-md-5">
           <div className="text-center mb-4">
-            <div className="lg-login-companion" aria-live="polite">
+            <div className={`lg-login-companion ilc-mood-${companionMood}`} aria-live="polite">
               <div className="ilc-speech"><span>{companionMessage}</span></div>
               <LedgerCharacter mood={companionMood} />
             </div>
