@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, Compass, X } from "lucide-react";
 import LedgerMascot from "./LedgerMascot.jsx";
 import "./ProductTour.css";
@@ -82,14 +82,26 @@ const STEPS = [
 export default function ProductTour({ user, onComplete }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const dialogRef = useRef(null);
+  const didInitializeRoute = useRef(false);
+  const location = useLocation();
   const navigate = useNavigate();
   const step = STEPS[activeIndex];
   const isLast = activeIndex === STEPS.length - 1;
 
   useEffect(() => {
     dialogRef.current?.focus();
-    navigate(STEPS[0].path);
-  }, [navigate]);
+
+    // useNavigate can change identity when the current location changes in
+    // BrowserRouter's declarative mode. Initialise the first tour route once
+    // only; otherwise this effect can send every Next/Back navigation back
+    // to the dashboard immediately after the URL changes.
+    if (didInitializeRoute.current) return;
+    didInitializeRoute.current = true;
+
+    if (location.pathname !== STEPS[0].path) {
+      navigate(STEPS[0].path, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   function goToStep(nextIndex) {
     const bounded = Math.max(0, Math.min(STEPS.length - 1, nextIndex));
