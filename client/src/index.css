@@ -25,6 +25,10 @@
      body text. This holds the same hue at ~5.1:1. */
   --lg-link: #7f631b;
   --lg-focus-ring: var(--lg-brass);
+  --lg-heading-font: "Fraunces", Georgia, "Times New Roman", serif;
+  --lg-body-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lg-type-body: clamp(.94rem, .3vw + .88rem, 1rem);
+  --lg-type-heading: clamp(1.45rem, 2.2vw, 2.2rem);
 
   /* Elevation scale — used on resting + hovered cards so surfaces read
      as raised even before interaction, not just on hover. */
@@ -32,7 +36,7 @@
   --lg-shadow-md: 0 8px 20px rgba(18, 36, 32, 0.08);
   --lg-shadow-lg: 0 16px 36px rgba(18, 36, 32, 0.16);
 
-  --bs-body-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bs-body-font-family: var(--lg-body-font);
   --bs-body-bg: var(--lg-page);
   --bs-body-color: var(--lg-text);
   --bs-border-radius: 0.6rem;
@@ -80,7 +84,7 @@
 }
 
 .font-serif {
-  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-family: var(--lg-heading-font);
 }
 .font-mono {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -89,6 +93,7 @@
 body {
   background-color: var(--lg-page);
   color: var(--lg-text);
+  font-size: var(--lg-type-body);
 }
 
 /* Scroll narrative indicator: fixed over the page so it never shifts content. */
@@ -621,3 +626,35 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 .lg-auth-create-link strong { font-weight: 700; }
 .lg-auth-back-link { border-color: transparent; min-height: 42px; }
 @media (max-width: 380px) { .lg-auth-quick-actions { grid-template-columns: 1fr; } .lg-auth-action-card { min-height: 64px; } }
+
+/* Consistent heading scale and theme-aware focus treatment. */
+h1, h2, h3, h4, h5, h6 { font-family: var(--lg-heading-font); }
+h1 { font-size: clamp(1.75rem, 3vw, 2.5rem); }
+h2 { font-size: clamp(1.45rem, 2.4vw, 2rem); }
+h3 { font-size: clamp(1.2rem, 1.8vw, 1.55rem); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [role="button"]:focus-visible, [role="tab"]:focus-visible {
+  outline: 2px solid var(--lg-focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lg-focus-ring) 20%, transparent);
+}
+
+/* Touch devices receive press feedback rather than relying on hover. */
+@media (hover: none) and (pointer: coarse) {
+  .lg-summary-card:hover, .lg-dashboard-panel:hover, .lg-dashboard-kpi:hover,
+  .lg-dashboard-category:hover { transform: none; }
+  .lg-summary-card:active, .lg-dashboard-kpi:active,
+  .lg-mode-chip:active, .lg-filter-chip:active, .lg-ai-suggestion:active {
+    transform: scale(.985);
+  }
+}
+
+/* Make CSS-driven motion follow the same preference as Framer Motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

@@ -1,21 +1,24 @@
 import { useEffect, useRef } from "react";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate, useReducedMotion } from "framer-motion";
 
-// Count-up number animation. Renders a <span> whose text ticks smoothly
-// from its previous value to the new `value` whenever it changes.
-//
-// Usage:
-//   <AnimatedNumber value={totals.inHand} formatter={fmtINR} />
+// Render the initial value without a count-up. Animate only after an actual
+// value change, and disable that transition when reduced motion is preferred.
 export default function AnimatedNumber({ value = 0, formatter = (n) => n, duration = 0.6, className }) {
   const motionVal = useMotionValue(value);
   const rounded = useTransform(motionVal, (v) => formatter(Math.round(v)));
-  const prev = useRef(value);
+  const previous = useRef(value);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (Object.is(previous.current, value)) return undefined;
+    previous.current = value;
+    if (prefersReducedMotion) {
+      motionVal.set(value);
+      return undefined;
+    }
     const controls = animate(motionVal, value, { duration, ease: "easeOut" });
-    prev.current = value;
     return () => controls.stop();
-  }, [value, duration, motionVal]);
+  }, [value, duration, motionVal, prefersReducedMotion]);
 
   return <motion.span className={className}>{rounded}</motion.span>;
 }
