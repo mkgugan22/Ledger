@@ -54,8 +54,16 @@ const STEPS = [
     mood: "curious",
   },
   {
+    path: "/bonds",
+    section: "07 · Bonds",
+    title: "Keep your bond holdings organised",
+    description: "Record bond purchases and valuations, and review coupon, issuer and maturity information in one place.",
+    bullets: ["Record bond details and purchase dates", "Review coupon and maturity information", "Keep current values up to date"],
+    mood: "curious",
+  },
+  {
     path: "/obligations",
-    section: "07 · Obligations",
+    section: "08 · Obligations",
     title: "Keep upcoming commitments visible",
     description: "Track debts and bills alongside your transactions, including due dates and payment status.",
     bullets: ["Review active bills and debts", "Update payment status as you go", "Keep due dates and balances up to date"],
@@ -63,7 +71,7 @@ const STEPS = [
   },
   {
     path: "/ledger-ai",
-    section: "08 · Ledger AI",
+    section: "09 · Ledger AI",
     title: "Ask questions about your Ledger data",
     description: "Ledger AI can explain recorded budgets, spending and investments. It is read-only: it does not create, edit or delete your records.",
     bullets: ["Ask about your recorded financial activity", "Copy a useful response or share a transcript", "Revoke a shared link from your active links list"],
@@ -80,7 +88,8 @@ export default function ProductTour({ user, onComplete }) {
 
   useEffect(() => {
     dialogRef.current?.focus();
-  }, []);
+    navigate(STEPS[0].path);
+  }, [navigate]);
 
   function goToStep(nextIndex) {
     const bounded = Math.max(0, Math.min(STEPS.length - 1, nextIndex));
