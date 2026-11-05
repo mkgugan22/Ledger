@@ -128,7 +128,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email.toLowerCase().trim() })
-      .select("+passwordHash tokenVersion emailVerified");
+      .select("+passwordHash tokenVersion emailVerified productTourCompletedAt");
     const passwordMatches = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
     if (!user || !passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password." });
