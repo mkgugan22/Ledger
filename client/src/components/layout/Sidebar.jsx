@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Landmark, BookOpen, PlusCircle, List, PiggyBank,
-  TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote, CreditCard,
+  TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote, CreditCard, Compass,
 } from "lucide-react";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: BookOpen, end: true },
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { to: "/obligations", label: "Obligations", icon: CreditCard },
   { to: "/ledger-ai", label: "Ledger AI", icon: Sparkles },
 ];
-export default function Sidebar({ user, theme, onThemeToggle, onLogout }) {
+export default function Sidebar({ user, theme, onThemeToggle, onLogout, onStartTour }) {
   return (
     <aside className="lg-sidebar d-flex flex-column p-3">
       <div className="d-flex align-items-center gap-2 px-1 pb-4">
@@ -70,6 +70,7 @@ export default function Sidebar({ user, theme, onThemeToggle, onLogout }) {
           <span>{user?.name || user?.email}</span>
           <button className="btn btn-sm btn-link text-white-50 p-1" onClick={onLogout} aria-label="Sign out" title="Sign out"><LogOut size={14} /></button>
         </div>
+        <button className="lg-theme-toggle lg-tour-launch" onClick={onStartTour}><Compass size={14} /> Take a tour</button>
         <button className="lg-theme-toggle" onClick={onThemeToggle}>{theme === "light" ? <Moon size={14} /> : <Sun size={14} />} {theme === "light" ? "Dark mode" : "Light mode"}</button>
         <div className="lg-fold-line" />
         <span className="lg-sidebar-foot">

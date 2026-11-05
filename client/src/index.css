@@ -671,3 +671,20 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   .lg-entry-mobile-card { padding: .8rem; }
   .lg-entry-mobile-actions .btn { min-height: 40px; }
 }
+
+/* On-demand project tour launch controls. */
+.lg-mobile-tour-trigger {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .65rem;
+  border: 1px solid rgba(247,242,228,.22);
+  border-radius: .55rem;
+  background: rgba(247,242,228,.12);
+  color: #F7F2E4;
+  font-size: .78rem;
+  font-weight: 650;
+}
+.lg-mobile-tour-trigger:active { transform: scale(.97); }
+.lg-tour-launch { justify-content: flex-start; gap: .5rem; }

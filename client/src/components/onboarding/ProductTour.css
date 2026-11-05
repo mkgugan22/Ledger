@@ -85,14 +85,8 @@
   background: radial-gradient(circle at 50% 20%, color-mix(in srgb,var(--lg-brass) 16%,var(--lg-surface)) 0, color-mix(in srgb,var(--lg-surface-soft) 88%,transparent) 70%);
   overflow: hidden;
 }
-.lg-tour-character .ilc-character {
-  right: auto;
-  left: 50%;
-  bottom: -2px;
-  transform: translateX(-50%) scale(.76);
-  transform-origin: bottom center;
-  animation: none;
-}
+.lg-tour-character { display: grid; place-items: center; }
+.lg-tour-character .ledger-mascot { width: 112px; height: 112px; margin-bottom: -4px; }
 .lg-tour-speech {
   position: absolute;
   z-index: 5;
