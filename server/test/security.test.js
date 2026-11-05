@@ -11,7 +11,7 @@ beforeAll(startTestDB);
 afterEach(async () => {
   await RateLimitCounter.deleteMany({});
   delete process.env.REQUIRE_EMAIL_VERIFICATION;
-  delete process.env.RESEND_API_KEY;
+  delete process.env.BREVO_API_KEY;
   delete process.env.AUTH_EMAIL_FROM;
   delete process.env.AUTH_PUBLIC_URL;
   vi.restoreAllMocks();
@@ -56,7 +56,7 @@ describe("authentication hardening", () => {
 
   it("requires verification when enabled and accepts only the emailed token", async () => {
     process.env.REQUIRE_EMAIL_VERIFICATION = "true";
-    process.env.RESEND_API_KEY = "test-provider-key";
+    process.env.BREVO_API_KEY = "test-provider-key";
     process.env.AUTH_EMAIL_FROM = "Ledger Test <noreply@example.com>";
     process.env.AUTH_PUBLIC_URL = "http://localhost:5173";
     const mail = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });
@@ -87,7 +87,7 @@ describe("authentication hardening", () => {
   });
 
   it("resets a password once and invalidates earlier sessions", async () => {
-    process.env.RESEND_API_KEY = "test-provider-key";
+    process.env.BREVO_API_KEY = "test-provider-key";
     process.env.AUTH_EMAIL_FROM = "Ledger Test <noreply@example.com>";
     process.env.AUTH_PUBLIC_URL = "http://localhost:5173";
     const mail = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });
@@ -124,7 +124,7 @@ describe("authentication hardening", () => {
   });
 
   it("does not reveal whether an email address exists in password reset responses", async () => {
-    process.env.RESEND_API_KEY = "test-provider-key";
+    process.env.BREVO_API_KEY = "test-provider-key";
     process.env.AUTH_EMAIL_FROM = "Ledger Test <noreply@example.com>";
     vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });
     await request(app)
