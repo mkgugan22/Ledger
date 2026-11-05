@@ -116,7 +116,7 @@ export default function ProductTour({ user, onComplete }) {
         ref={dialogRef}
         className="lg-tour-dialog"
         role="dialog"
-        aria-modal="true"
+        aria-modal="false"
         aria-labelledby="lg-tour-title"
         aria-describedby="lg-tour-description"
         tabIndex={-1}

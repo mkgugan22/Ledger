@@ -171,12 +171,7 @@ export default function Login({ onAuthenticated }) {
             <h1 className="font-serif mt-2 mb-1">Ledger</h1>
             <p className="text-secondary small mb-0">Your household book, kept private.</p>
             <h2 className="h5 mt-4 mb-0">{heading}</h2>
-            {(mode === "login" || mode === "register") && (
-              <div className="lg-auth-mode-tabs mt-3" role="tablist" aria-label="Account access">
-                <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>Sign in</button>
-                <button type="button" role="tab" aria-selected={mode === "register"} className={mode === "register" ? "active" : ""} onClick={() => switchMode("register")}>Create account</button>
-              </div>
-            )}
+
           </div>
 
           {error && <Alert variant="danger" className="py-2 small" role="alert">{error}</Alert>}
