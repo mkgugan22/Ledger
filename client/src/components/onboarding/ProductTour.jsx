@@ -79,7 +79,7 @@ const STEPS = [
   },
 ];
 
-export default function ProductTour({ user, onComplete }) {
+export default function ProductTour({ onComplete }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const dialogRef = useRef(null);
   const didInitializeRoute = useRef(false);
