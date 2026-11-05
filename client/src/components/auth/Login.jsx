@@ -84,6 +84,9 @@ export default function Login({ onAuthenticated }) {
         setLoginAttempts(0);
         setCompanionMood("happy");
         setCompanionMessage("You're in! Welcome back.");
+        if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+          await new Promise((resolve) => window.setTimeout(resolve, 550));
+        }
         onAuthenticated(result.user);
       } else if (mode === "register") {
         if (password !== confirmPassword) throw new Error("The passwords do not match.");
@@ -96,6 +99,9 @@ export default function Login({ onAuthenticated }) {
         } else {
           setCompanionMood("happy");
           setCompanionMessage("Your Ledger is ready. Let's get started!");
+          if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+            await new Promise((resolve) => window.setTimeout(resolve, 450));
+          }
           onAuthenticated(result.user);
         }
       } else if (mode === "forgot") {
