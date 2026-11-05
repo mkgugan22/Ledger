@@ -114,7 +114,7 @@ export default function Layout({
        * Existing page components do NOT need to be modified.
        * ============================================================
        */}
-      <InteractiveLedgerCompanion key={user?.email} userKey={user?.email || "guest"} enabled={location.pathname === "/"} />
+      <InteractiveLedgerCompanion key={user?.email} userKey={user?.email || "guest"} enabled={location.pathname === "/" && !tourOpen} />
       {tourOpen && <ProductTour user={user} onComplete={onTourComplete} />}
     </div>
   );
