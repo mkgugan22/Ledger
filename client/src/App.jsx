@@ -25,6 +25,7 @@ import {
   fetchValuations,
   fetchBudgets,
   logout,
+  completeProductTour,
   removeTransaction,
   removeValuation,
   upsertValuation,
@@ -97,6 +98,7 @@ export default function App() {
   const pendingDeletes = useRef(new Map());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [theme, setTheme] = useState(() => localStorage.getItem("ledger-theme") || "light");
+  const [tourOpen, setTourOpen] = useState(false);
 
   const transactions = useMemo(() => withoutHidden(allTransactions, hiddenIds), [allTransactions, hiddenIds]);
   const valuations = useMemo(() => withoutHidden(allValuations, hiddenIds), [allValuations, hiddenIds]);
@@ -107,6 +109,28 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("ledger-theme", theme); }, [theme]);
   useEffect(() => { const expire = () => setUser(null); window.addEventListener("ledger:session-expired", expire); return () => window.removeEventListener("ledger:session-expired", expire); }, []);
   useEffect(() => { fetchSession().then((result) => setUser(result.user)).catch(() => {}).finally(() => setAuthChecked(true)); }, []);
+  useEffect(() => {
+    if (!user?.email) { setTourOpen(false); return; }
+    let localCompleted = false;
+    try { localCompleted = localStorage.getItem(`ledger-tour-completed:${user.email.toLowerCase()}`) === "1"; } catch { /* The server timestamp remains authoritative. */ }
+    setTourOpen(!user.productTourCompletedAt && !localCompleted);
+  }, [user?.email, user?.productTourCompletedAt]);
+
+  const finishProductTour = useCallback(async () => {
+    const email = user?.email?.toLowerCase();
+    if (email) {
+      try { localStorage.setItem(`ledger-tour-completed:${email}`, "1"); } catch { /* Server timestamp still records completion. */ }
+    }
+    setTourOpen(false);
+    try {
+      const result = await completeProductTour();
+      setUser((current) => current?.email?.toLowerCase() === email
+        ? { ...current, productTourCompletedAt: result.productTourCompletedAt }
+        : current);
+    } catch {
+      // A failed preference write never blocks the current application session.
+    }
+  }, [user?.email]);
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -356,7 +380,7 @@ export default function App() {
           : <Login onAuthenticated={setUser} />
       } />
       <Route path="/ledger-ai/shared/:token" element={<SharedLedgerAI />} />
-      <Route element={<Protected user={user}><Layout apiError={apiError} user={user} theme={theme} onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")} onLogout={async () => { await flushPendingDeletes(); await logout().catch(() => {}); setUser(null); }} /></Protected>}>
+      <Route element={<Protected user={user}><Layout apiError={apiError} user={user} theme={theme} tourOpen={tourOpen} onTourComplete={finishProductTour} onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")} onLogout={async () => { await flushPendingDeletes(); await logout().catch(() => {}); setUser(null); }} /></Protected>}>
         <Route index element={loaded ? <Dashboard {...shared} /> : <DashboardSkeleton />} />
         <Route path="add" element={<AddEntry {...shared} />} />
         <Route path="entries" element={<Entries {...shared} />} />

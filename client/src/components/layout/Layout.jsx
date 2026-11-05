@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import Sidebar from "./Sidebar.jsx";
 import TopNavbar from "./TopNavbar.jsx";
@@ -7,6 +7,7 @@ import AnimatedBackground from "../../lib/motion/AnimatedBackground.jsx";
 import PageTransition from "../../lib/motion/PageTransition.jsx";
 import ScrollProgress from "../../lib/motion/ScrollProgress.jsx";
 import InteractiveLedgerCompanion from "../../lib/motion/InteractiveLedgerCompanion.jsx";
+import ProductTour from "../onboarding/ProductTour.jsx";
 import "../../lib/motion/InteractiveLedgerCompanionEnhanced.css";
 
 export default function Layout({
@@ -15,7 +16,10 @@ export default function Layout({
   theme,
   onThemeToggle,
   onLogout,
+  tourOpen,
+  onTourComplete,
 }) {
+  const location = useLocation();
   return (
     <div
       className="d-flex"
@@ -110,7 +114,8 @@ export default function Layout({
        * Existing page components do NOT need to be modified.
        * ============================================================
        */}
-      <InteractiveLedgerCompanion />
+      <InteractiveLedgerCompanion key={user?.email} userKey={user?.email || "guest"} enabled={location.pathname === "/"} />
+      {tourOpen && <ProductTour user={user} onComplete={onTourComplete} />}
     </div>
   );
 }

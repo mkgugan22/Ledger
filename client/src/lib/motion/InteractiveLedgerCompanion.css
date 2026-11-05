@@ -52,6 +52,22 @@
   --ilc-red: #9b625d;
 }
 
+.ilc-dismiss {
+  position: absolute; top: 25px; left: 0; z-index: 5;
+  width: 22px; height: 22px; display: grid; place-items: center;
+  border: 1px solid rgba(62,98,89,.2); border-radius: 50%; padding: 0;
+  background: var(--ilc-paper); color: var(--ilc-ink); font-size: 16px;
+  line-height: 1; cursor: pointer; pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(37,53,47,.12);
+}
+.ilc-face-angry .ilc-eye { transform: scaleY(.86); }
+.ilc-brow-angry-left { transform: rotate(17deg) translateY(1px); }
+.ilc-brow-angry-right { transform: rotate(-17deg) translateY(1px); }
+.ilc-mouth-angry {
+  width: 12px; height: 4px; top: 32px; border: 0;
+  border-top: 2px solid var(--ilc-red); border-radius: 50% 50% 0 0;
+}
+
 /* -------------------------------------------------------
    SOFT GLOW
 ------------------------------------------------------- */
