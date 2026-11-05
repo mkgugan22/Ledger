@@ -148,7 +148,6 @@ export default function ProductTour({ user, onComplete }) {
 
         <div className="lg-tour-content">
           <div className={`lg-tour-character ilc-mood-${step.mood}`} aria-hidden="true">
-            <div className="lg-tour-speech">Hi{user?.name ? `, ${user.name.split(" ")[0]}` : ""}! Let me show you around.</div>
             <LedgerMascot mood={step.mood} />
           </div>
           <div className="lg-tour-copy">
