@@ -33,6 +33,14 @@ describe("authentication", () => {
     await active.post("/api/auth/login").send({ email: "test@example.com", password: "password12345" }).expect(200);
     const response = await active.get("/api/auth/me").expect(200);
     expect(response.body.user.email).toBe("test@example.com");
+    expect(response.body.user.productTourCompletedAt).toBeNull();
+
+    const completed = await active.post("/api/auth/tour/complete").expect(200);
+    expect(completed.body.completed).toBe(true);
+    expect(completed.body.productTourCompletedAt).toBeTruthy();
+
+    const restored = await active.get("/api/auth/me").expect(200);
+    expect(restored.body.user.productTourCompletedAt).toBe(completed.body.productTourCompletedAt);
   });
 
   it("claims legacy records only when one account exists", async () => {

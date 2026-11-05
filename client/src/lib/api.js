@@ -126,6 +126,7 @@ export const resetPassword = async (token, password) => {
   return result;
 };
 export const fetchSession = () => request("/auth/me");
+export const completeProductTour = () => request("/auth/tour/complete", { method: "POST" });
 export const logout = () => request("/auth/logout", { method: "POST" });
 
 export const fetchInvestments = async () => collection(await request("/investments")).map(withId);

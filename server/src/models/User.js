@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema({
   passwordResetExpiresAt: { type: Date, select: false },
   // Incrementing this value invalidates JWT cookies issued before the change.
   tokenVersion: { type: Number, default: 0, min: 0 },
+  // Null means this account has not completed or skipped the first-login tour.
+  productTourCompletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);
