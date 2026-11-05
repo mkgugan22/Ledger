@@ -109,11 +109,17 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("ledger-theme", theme); }, [theme]);
   useEffect(() => { const expire = () => setUser(null); window.addEventListener("ledger:session-expired", expire); return () => window.removeEventListener("ledger:session-expired", expire); }, []);
   useEffect(() => { fetchSession().then((result) => setUser(result.user)).catch(() => {}).finally(() => setAuthChecked(true)); }, []);
-  const tourOpen = useMemo(() => {
-    const email = user?.email?.toLowerCase();
-    if (!email || user.productTourCompletedAt || tourDismissedEmail === email) return false;
-    try { return localStorage.getItem(`ledger-tour-completed:${email}`) !== "1"; } catch { return true; }
-  }, [user?.email, user?.productTourCompletedAt, tourDismissedEmail]);
+  const currentTourEmail = user?.email?.toLowerCase() || "";
+  let localTourCompleted = false;
+  if (currentTourEmail) {
+    try { localTourCompleted = localStorage.getItem(`ledger-tour-completed:${currentTourEmail}`) === "1"; } catch { /* Server preference remains available. */ }
+  }
+  const tourOpen = Boolean(
+    currentTourEmail &&
+    !user.productTourCompletedAt &&
+    tourDismissedEmail !== currentTourEmail &&
+    !localTourCompleted
+  );
 
   const finishProductTour = useCallback(async () => {
     const email = user?.email?.toLowerCase();
