@@ -658,3 +658,44 @@ textarea:focus-visible, [role="button"]:focus-visible, [role="tab"]:focus-visibl
     transition-duration: .01ms !important;
   }
 }
+
+/* Authentication controls: compact, high-contrast and touch friendly. */
+.lg-auth-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .25rem;
+  padding: .25rem;
+  border: 1px solid var(--lg-rule);
+  border-radius: .75rem;
+  background: var(--lg-page-dim);
+}
+.lg-auth-mode-tabs button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: .55rem;
+  background: transparent;
+  color: var(--lg-text-dim);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 650;
+}
+.lg-auth-mode-tabs button.active {
+  border-color: var(--lg-rule);
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  box-shadow: var(--lg-shadow-sm);
+}
+.lg-auth-password-toggle {
+  min-width: 44px;
+  border: 1px solid var(--lg-rule);
+  border-left: 0;
+  border-radius: 0 .5rem .5rem 0;
+  background: var(--lg-surface-soft);
+  color: var(--lg-text-dim);
+}
+.lg-auth-password-toggle:hover { color: var(--lg-text); background: var(--lg-page-dim); }
+.lg-auth-shell .input-group > .form-control { min-width: 0; }
+@media (max-width: 420px) {
+  .lg-auth-card .card-body { padding: 1.25rem !important; }
+  .lg-login-companion { margin-bottom: .65rem; }
+}
