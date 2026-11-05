@@ -118,7 +118,7 @@ export default function Layout({
        * ============================================================
        */}
       <InteractiveLedgerCompanion key={user?.email} userKey={user?.email || "guest"} enabled={location.pathname === "/" && !tourOpen} />
-      {tourOpen && <ProductTour user={user} onComplete={onTourComplete} />}
+      {tourOpen && <ProductTour onComplete={onTourComplete} />}
     </div>
   );
 }

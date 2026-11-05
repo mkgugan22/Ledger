@@ -87,22 +87,6 @@
 }
 .lg-tour-character { display: grid; place-items: center; }
 .lg-tour-character .ledger-mascot { width: 112px; height: 112px; margin-bottom: -4px; }
-.lg-tour-speech {
-  position: absolute;
-  z-index: 5;
-  left: .25rem;
-  right: .25rem;
-  top: .35rem;
-  padding: .3rem .35rem;
-  border: 1px solid var(--lg-rule);
-  border-radius: .55rem;
-  background: color-mix(in srgb,var(--lg-surface) 94%,transparent);
-  color: var(--lg-text);
-  font-size: .58rem;
-  line-height: 1.25;
-  text-align: center;
-  box-shadow: var(--lg-shadow-sm);
-}
 .lg-tour-section {
   color: var(--lg-brass-deep);
   font-size: .64rem;
