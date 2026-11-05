@@ -525,68 +525,30 @@ function getSubmitReaction(form) {
   };
 }
 
-function CharacterFace({ mood }) {
-  const happy =
-    mood === "happy" ||
-    mood === "very-happy" ||
-    mood === "celebrate";
-
-  const sad =
-    mood === "sad" ||
-    mood === "concerned";
-
-  const curious =
-    mood === "curious" ||
-    mood === "thinking";
-
+export function CharacterFace({ mood }) {
+  const happy = mood === "happy" || mood === "very-happy" || mood === "celebrate";
+  const sad = mood === "sad" || mood === "concerned";
+  const curious = mood === "curious" || mood === "thinking";
   const listening = mood === "listening";
+  const angry = mood === "angry";
 
   return (
     <div className={`ilc-face ilc-face-${mood}`}>
       <div className="ilc-ear ilc-ear-left" />
       <div className="ilc-ear ilc-ear-right" />
-
       <div className="ilc-head">
-        <div
-          className={`ilc-eye ilc-eye-left ${
-            happy ? "ilc-eye-happy" : ""
-          } ${sad ? "ilc-eye-sad" : ""}`}
-        />
-
-        <div
-          className={`ilc-eye ilc-eye-right ${
-            happy ? "ilc-eye-happy" : ""
-          } ${sad ? "ilc-eye-sad" : ""}`}
-        />
-
-        <div
-          className={`ilc-brow ilc-brow-left ${
-            curious ? "ilc-brow-raised-left" : ""
-          } ${sad ? "ilc-brow-sad-left" : ""}`}
-        />
-
-        <div
-          className={`ilc-brow ilc-brow-right ${
-            curious ? "ilc-brow-raised-right" : ""
-          } ${sad ? "ilc-brow-sad-right" : ""}`}
-        />
-
-        <div
-          className={`ilc-mouth ${
-            happy ? "ilc-mouth-happy" : ""
-          } ${sad ? "ilc-mouth-sad" : ""} ${
-            listening ? "ilc-mouth-listening" : ""
-          }`}
-        />
-
+        <div className={`ilc-eye ilc-eye-left ${happy ? "ilc-eye-happy" : ""} ${sad || angry ? "ilc-eye-sad" : ""}`} />
+        <div className={`ilc-eye ilc-eye-right ${happy ? "ilc-eye-happy" : ""} ${sad || angry ? "ilc-eye-sad" : ""}`} />
+        <div className={`ilc-brow ilc-brow-left ${curious ? "ilc-brow-raised-left" : ""} ${sad ? "ilc-brow-sad-left" : ""} ${angry ? "ilc-brow-angry-left" : ""}`} />
+        <div className={`ilc-brow ilc-brow-right ${curious ? "ilc-brow-raised-right" : ""} ${sad ? "ilc-brow-sad-right" : ""} ${angry ? "ilc-brow-angry-right" : ""}`} />
+        <div className={`ilc-mouth ${happy ? "ilc-mouth-happy" : ""} ${sad ? "ilc-mouth-sad" : ""} ${listening ? "ilc-mouth-listening" : ""} ${angry ? "ilc-mouth-angry" : ""}`} />
         <div className="ilc-cheek ilc-cheek-left" />
         <div className="ilc-cheek ilc-cheek-right" />
       </div>
     </div>
   );
 }
-
-function CharacterBody({ mood }) {
+export function CharacterBody({ mood }) {
   return (
     <div className={`ilc-character-body ilc-body-${mood}`}>
       <div className="ilc-neck" />
@@ -624,9 +586,24 @@ function CelebrationStars() {
   );
 }
 
-export default function InteractiveLedgerCompanion() {
+export function LedgerCharacter({ mood = "idle" }) {
+  return (
+    <div className="ilc-character" aria-hidden="true">
+      <CharacterFace mood={mood} />
+      <CharacterBody mood={mood} />
+      {mood === "celebrate" && <CelebrationStars />}
+      <div className="ilc-shadow" />
+    </div>
+  );
+}
+
+export default function InteractiveLedgerCompanion({ userKey = "guest", enabled = true }) {
   const [state, setState] = useState(DEFAULT_STATE);
   const [visible, setVisible] = useState(true);
+  const storageKey = `ledger-companion-dismissed:${String(userKey).trim().toLowerCase()}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(storageKey) === "1"; } catch { return false; }
+  });
 
   useEffect(() => {
     let resetTimer = null;
@@ -803,33 +780,21 @@ export default function InteractiveLedgerCompanion() {
     };
   }, []);
 
-  if (!visible) {
-    return null;
+  if (!enabled || !visible || dismissed) return null;
+
+  function dismiss() {
+    setDismissed(true);
+    try { localStorage.setItem(storageKey, "1"); } catch { /* Session-only dismissal fallback. */ }
   }
 
   return (
-    <div
-      className={`ilc-root ilc-mood-${state.mood}`}
-      aria-hidden="true"
-    >
+    <div className={`ilc-root ilc-mood-${state.mood}`}>
+      <button type="button" className="ilc-dismiss" onClick={dismiss} aria-label="Dismiss Ledger companion" title="Dismiss companion">×</button>
       <div className="ilc-glow" />
-
-      <div className="ilc-speech">
-        <span key={`${state.mood}-${state.message}`}>
-          {state.message}
-        </span>
+      <div className="ilc-speech" aria-live="polite">
+        <span key={`${state.mood}-${state.message}`}>{state.message}</span>
       </div>
-
-      <div className="ilc-character">
-        <CharacterFace mood={state.mood} />
-        <CharacterBody mood={state.mood} />
-
-        {state.mood === "celebrate" && (
-          <CelebrationStars />
-        )}
-
-        <div className="ilc-shadow" />
-      </div>
+      <LedgerCharacter mood={state.mood} />
     </div>
   );
 }
