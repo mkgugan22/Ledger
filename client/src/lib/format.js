@@ -27,3 +27,36 @@ export function fmtINR(n) {
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+
+/**
+ * Parse a user-facing INR amount. Presentation separators and the rupee
+ * symbol are removed; the returned value is a plain numeric rupee amount
+ * suitable for the existing API and database contract.
+ */
+export function parseINRInput(value) {
+  const input = String(value ?? "").replace(/[₹,\s]/g, "");
+  if (!input || input === ".") return NaN;
+  if (!/^\d+(?:\.\d{0,2})?$/.test(input)) return NaN;
+  return Number(input);
+}
+
+/**
+ * Format an amount while typing using Indian digit grouping:
+ * 100000 -> 1,00,000. A trailing decimal point is preserved while typing.
+ */
+export function formatINRInput(value) {
+  let input = String(value ?? "").replace(/[₹,\s]/g, "").replace(/[^\d.]/g, "");
+  if (!input) return "";
+  const decimalIndex = input.indexOf(".");
+  if (decimalIndex !== -1) {
+    input = input.slice(0, decimalIndex + 1) + input.slice(decimalIndex + 1).replace(/\./g, "");
+  }
+  const [integerPart, ...fractionParts] = input.split(".");
+  const digits = integerPart || "0";
+  const lastThree = digits.slice(-3);
+  const leading = digits.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+  const grouped = leading ? `${leading},${lastThree}` : lastThree;
+  if (decimalIndex === -1) return grouped;
+  const fraction = (fractionParts[0] || "").slice(0, 2);
+  return `${grouped}.${fraction}`;
+}
