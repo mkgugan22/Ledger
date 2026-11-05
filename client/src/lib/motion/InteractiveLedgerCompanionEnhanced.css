@@ -1,5 +1,9 @@
 /* Additional ambient motion for the existing Ledger companion. UI-only. */
 .ilc-root { transform: translateZ(0); }
+.lg-login-companion { position: relative; width: 142px; height: 132px; margin: 0 auto 1rem; }
+.lg-login-companion .ilc-character { right: 33px; bottom: 0; }
+.lg-login-companion .ilc-speech { right: 4px; width: 134px; min-height: 30px; font-size: .72rem; padding: .45rem .55rem; }
+.lg-login-companion .ilc-speech::after { right: 62px; }
 .ilc-root .ilc-character { animation-duration: 3.2s; }
 .ilc-root .ilc-face { animation-duration: 2.8s; }
 .ilc-root .ilc-eye { animation: ilc-companion-blink 5.2s infinite; }

@@ -12,6 +12,10 @@ export default function AnimatedBackground() {
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const mobile = window.matchMedia?.("(max-width: 767px)").matches;
+    const lowPower = Boolean(navigator.connection?.saveData) || (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4);
+    // Mobile, reduced-motion, and low-power devices keep the CSS ambient
+    // background and avoid initialising a continuous WebGL render loop.
+    if (mobile || reducedMotion || lowPower) return undefined;
 
     let renderer;
     try {

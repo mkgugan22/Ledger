@@ -621,3 +621,53 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 .lg-auth-create-link strong { font-weight: 700; }
 .lg-auth-back-link { border-color: transparent; min-height: 42px; }
 @media (max-width: 380px) { .lg-auth-quick-actions { grid-template-columns: 1fr; } .lg-auth-action-card { min-height: 64px; } }
+
+/* Mobile-first transaction cards replace the dense table below the md breakpoint. */
+.lg-entry-cards { display: grid; gap: .75rem; }
+.lg-entry-mobile-card {
+  min-width: 0;
+  border: 1px solid var(--lg-rule);
+  border-radius: .9rem;
+  padding: .9rem;
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  box-shadow: var(--lg-shadow-sm);
+}
+.lg-entry-mobile-top, .lg-entry-mobile-main, .lg-entry-mobile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.lg-entry-mobile-main { align-items: flex-start; margin-top: .8rem; }
+.lg-entry-mobile-amount {
+  flex: 0 0 auto;
+  color: var(--lg-text);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 1.05rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.lg-entry-mobile-note {
+  margin: .65rem 0 0;
+  padding-top: .6rem;
+  border-top: 1px solid var(--lg-rule);
+  color: var(--lg-text-dim);
+  font-size: .8rem;
+  overflow-wrap: anywhere;
+}
+.lg-entry-mobile-receipt { margin-top: .4rem; }
+.lg-entry-mobile-actions {
+  justify-content: flex-end;
+  padding-top: .65rem;
+  margin-top: .65rem;
+  border-top: 1px solid var(--lg-rule);
+}
+.lg-entry-mobile-edit-grid { display: grid; gap: .55rem; }
+.lg-entry-mobile-edit .form-control,
+.lg-entry-mobile-edit .form-select { min-width: 0; }
+@media (max-width: 575.98px) {
+  .lg-entry-mobile-card { padding: .8rem; }
+  .lg-entry-mobile-actions .btn { min-height: 40px; }
+}

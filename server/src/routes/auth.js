@@ -117,7 +117,7 @@ router.post(
     }
 
     issueSession(res, user);
-    res.status(201).json({ user: { id: user._id, name: user.name, email: user.email } });
+    res.status(201).json({ user: { id: user._id, name: user.name, email: user.email, productTourCompletedAt: user.productTourCompletedAt || null } });
   })
 );
 
@@ -128,7 +128,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email.toLowerCase().trim() })
-      .select("+passwordHash tokenVersion emailVerified");
+      .select("+passwordHash tokenVersion emailVerified productTourCompletedAt");
     const passwordMatches = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
     if (!user || !passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password." });
@@ -141,7 +141,7 @@ router.post(
     }
     await claimLegacyRecords(user._id);
     issueSession(res, user);
-    res.json({ user: { id: user._id, name: user.name, email: user.email } });
+    res.json({ user: { id: user._id, name: user.name, email: user.email, productTourCompletedAt: user.productTourCompletedAt || null } });
   })
 );
 
@@ -269,10 +269,24 @@ router.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = await User.findById(req.userId).select("name email emailVerified");
+    const user = await User.findById(req.userId).select("name email emailVerified productTourCompletedAt");
     if (!user) return res.status(401).json({ error: "Session expired. Please sign in again." });
     await claimLegacyRecords(user._id);
-    res.json({ user: { id: user._id, name: user.name, email: user.email } });
+    res.json({ user: { id: user._id, name: user.name, email: user.email, productTourCompletedAt: user.productTourCompletedAt || null } });
+  })
+);
+
+router.post(
+  "/tour/complete",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.userId).select("productTourCompletedAt");
+    if (!user) return res.status(401).json({ error: "Session expired. Please sign in again." });
+    if (!user.productTourCompletedAt) {
+      user.productTourCompletedAt = new Date();
+      await user.save();
+    }
+    res.json({ completed: true, productTourCompletedAt: user.productTourCompletedAt });
   })
 );
 

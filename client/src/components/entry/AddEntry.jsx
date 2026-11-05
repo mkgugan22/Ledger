@@ -4,7 +4,7 @@ import { PlusCircle, Sparkles } from "lucide-react";
 import PageHeader from "../shared/PageHeader.jsx";
 import { MODES, MODE_COLOR } from "../../lib/constants.js";
 import { parsePayslipDocument } from "../../lib/api.js";
-import { currentDate } from "../../lib/format.js";
+import { currentDate, formatINRInput, parseINRInput } from "../../lib/format.js";
 
 const PLACEHOLDERS = {
   Income: "Salary, NATS…",
@@ -17,6 +17,7 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
   const [mode, setMode] = useState("Needs");
   const [type, setType] = useState("");
   const [amount, setAmount] = useState("");
+  const [amountError, setAmountError] = useState("");
   const [month, setMonth] = useState(defaultMonth);
   const [date, setDate] = useState(defaultMonth === currentDate().slice(0, 7) ? currentDate() : `${defaultMonth}-01`);
   const [account, setAccount] = useState("");
@@ -44,7 +45,8 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
       const suggestion = await parsePayslipDocument(file);
       setMode(suggestion.mode || "Income");
       setType(suggestion.type || "Salary");
-      setAmount(String(suggestion.amount));
+      setAmount(formatINRInput(String(suggestion.amount)));
+      setAmountError("");
       if (suggestion.month) { setMonth(suggestion.month); setDate(`${suggestion.month}-01`); }
       if (suggestion.note) setNote(suggestion.note);
       setAutoFillNotice("Fields below were filled in from your payslip — check them over before saving.");
@@ -55,12 +57,20 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
     }
   }
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    if (!type.trim() || !amount || Number(amount) <= 0) return;
-    addTransaction({ mode, type: type.trim(), amount: Number(amount), month, date, account: account.trim(), merchant: merchant.trim(), paymentMethod: paymentMethod.trim(), note: note.trim(), recurring }, receipt);
+    if (!type.trim()) return;
+    const parsedAmount = parseINRInput(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setAmountError("Enter a valid amount greater than ₹0. Use up to two decimal places.");
+      return;
+    }
+    setAmountError("");
+    const saved = await addTransaction({ mode, type: type.trim(), amount: parsedAmount, month, date, account: account.trim(), merchant: merchant.trim(), paymentMethod: paymentMethod.trim(), note: note.trim(), recurring }, receipt);
+    if (!saved) return;
     setType("");
     setAmount("");
+    setAmountError("");
     setDate(month === currentDate().slice(0, 7) ? currentDate() : `${month}-01`);
     setAccount("");
     setMerchant("");
@@ -152,17 +162,28 @@ export default function AddEntry({ defaultMonth, addTransaction, typeHints }) {
 
               <Col md={3}>
                 <Form.Group>
-                  <Form.Label className="small fw-semibold text-secondary">Amount (₹)</Form.Label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0"
-                    className="font-mono"
-                    required
-                  />
+                  <Form.Label className="small fw-semibold text-secondary">Amount</Form.Label>
+                  <div className="input-group">
+                    <span className="input-group-text fw-semibold" aria-hidden="true">₹</span>
+                    <Form.Control
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={amount}
+                      onChange={(e) => {
+                        setAmount(formatINRInput(e.target.value));
+                        if (amountError) setAmountError("");
+                      }}
+                      placeholder="0"
+                      className="font-mono text-end"
+                      aria-label="Amount in rupees"
+                      aria-describedby="entry-amount-help"
+                      isInvalid={Boolean(amountError)}
+                      required
+                    />
+                  </div>
+                  <Form.Text id="entry-amount-help">Indian number format, e.g. 1,00,000.</Form.Text>
+                  {amountError && <div className="small text-danger mt-1" role="alert">{amountError}</div>}
                 </Form.Group>
               </Col>
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Form, Alert, ProgressBar } from "react-bootstrap";
-import { ArrowLeft, KeyRound, Landmark, LockKeyhole, MailCheck, UserRoundPlus } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, KeyRound, Landmark, LockKeyhole, MailCheck, UserRoundPlus } from "lucide-react";
 import {
   login,
   register,
@@ -10,7 +10,8 @@ import {
   requestPasswordReset,
   resetPassword,
 } from "../../lib/api.js";
-import LedgerHeroBackground from "../../lib/motion/LedgerHeroBackground.jsx";
+import { LedgerCharacter } from "../../lib/motion/InteractiveLedgerCompanion.jsx";
+import "../../lib/motion/InteractiveLedgerCompanionEnhanced.css";
 
 function scorePassword(value) {
   if (!value) return 0;
@@ -39,6 +40,10 @@ export default function Login({ onAuthenticated }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(Boolean(actionTokens.verify));
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [companionMood, setCompanionMood] = useState("idle");
+  const [companionMessage, setCompanionMessage] = useState("Welcome to Ledger. Let's open your financial workspace.");
   const strength = scorePassword(password);
   const strengthLabel = ["", "Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"][strength];
 
@@ -69,16 +74,34 @@ export default function Login({ onAuthenticated }) {
     setError("");
     setMessage("");
     setBusy(true);
+    if (mode === "login") {
+      setCompanionMood("thinking");
+      setCompanionMessage("Checking your sign-in details…");
+    }
     try {
       if (mode === "login") {
         const result = await login({ email, password });
+        setLoginAttempts(0);
+        setCompanionMood("happy");
+        setCompanionMessage("You're in! Welcome back.");
+        if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+          await new Promise((resolve) => window.setTimeout(resolve, 550));
+        }
         onAuthenticated(result.user);
       } else if (mode === "register") {
+        if (password !== confirmPassword) throw new Error("The passwords do not match.");
         const result = await register({ name, email, password });
         if (result.verificationRequired) {
           setMessage(result.message || "Check your inbox for a verification link before signing in.");
+          setCompanionMood("happy");
+          setCompanionMessage("Account created! Check your inbox to verify your email.");
           setMode("login");
         } else {
+          setCompanionMood("happy");
+          setCompanionMessage("Your Ledger is ready. Let's get started!");
+          if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+            await new Promise((resolve) => window.setTimeout(resolve, 450));
+          }
           onAuthenticated(result.user);
         }
       } else if (mode === "forgot") {
@@ -98,6 +121,17 @@ export default function Login({ onAuthenticated }) {
       }
     } catch (err) {
       setError(err.message || "Unable to complete the request.");
+      if (mode === "login" && err.status === 401) {
+        const nextAttempts = loginAttempts + 1;
+        setLoginAttempts(nextAttempts);
+        setCompanionMood(nextAttempts >= 3 ? "angry" : "sad");
+        setCompanionMessage(nextAttempts >= 3
+          ? "That still doesn't match. Let's double-check your details."
+          : "That didn't match. Check your email and password, then try again.");
+      } else if (mode === "login") {
+        setCompanionMood("concerned");
+        setCompanionMessage("I couldn't sign you in just now. Let's try again.");
+      }
       if (err.code === "EMAIL_VERIFICATION_REQUIRED") setMode("resend");
     } finally {
       setBusy(false);
@@ -119,18 +153,30 @@ export default function Login({ onAuthenticated }) {
     setMessage("");
     setPassword("");
     setConfirmPassword("");
+    setShowPassword(false);
+    setCompanionMood(next === "register" ? "curious" : "idle");
+    setCompanionMessage(next === "register" ? "Let's set up your Ledger account." : "I'm ready when you are.");
   }
 
   return (
     <main className="lg-auth-shell d-flex align-items-center justify-content-center p-3">
-      <LedgerHeroBackground />
       <Card className="lg-auth-card shadow-sm" style={{ position: "relative", zIndex: 1 }}>
         <Card.Body className="p-4 p-md-5">
           <div className="text-center mb-4">
+            <div className={`lg-login-companion ilc-mood-${companionMood}`} aria-live="polite">
+              <div className="ilc-speech"><span>{companionMessage}</span></div>
+              <LedgerCharacter mood={companionMood} />
+            </div>
             <Landmark size={30} color="var(--lg-brass)" />
             <h1 className="font-serif mt-2 mb-1">Ledger</h1>
             <p className="text-secondary small mb-0">Your household book, kept private.</p>
             <h2 className="h5 mt-4 mb-0">{heading}</h2>
+            {(mode === "login" || mode === "register") && (
+              <div className="lg-auth-mode-tabs mt-3" role="tablist" aria-label="Account access">
+                <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>Sign in</button>
+                <button type="button" role="tab" aria-selected={mode === "register"} className={mode === "register" ? "active" : ""} onClick={() => switchMode("register")}>Create account</button>
+              </div>
+            )}
           </div>
 
           {error && <Alert variant="danger" className="py-2 small" role="alert">{error}</Alert>}
@@ -160,14 +206,18 @@ export default function Login({ onAuthenticated }) {
                   <div className="input-group">
                     <span className="input-group-text"><LockKeyhole size={15} /></span>
                     <Form.Control
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       minLength={mode === "login" ? 1 : 12}
                       maxLength={72}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => { if (mode === "login" && companionMood !== "angry" && companionMood !== "sad") { setCompanionMood("curious"); setCompanionMessage("I'll keep an eye on your sign-in."); } }}
+                      onChange={(e) => { setPassword(e.target.value); if (mode === "login" && loginAttempts === 0) { setCompanionMood("thinking"); setCompanionMessage("Take your time. Your password stays private."); } }}
                       required
                       autoComplete={mode === "login" ? "current-password" : "new-password"}
                     />
+                    <button type="button" className="lg-auth-password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"}>
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                   {mode !== "login" && (
                     <>
@@ -179,18 +229,23 @@ export default function Login({ onAuthenticated }) {
                 </Form.Group>
               )}
 
-              {mode === "reset" && (
+              {(mode === "reset" || mode === "register") && (
                 <Form.Group className="mb-3">
-                  <Form.Label>Confirm new password</Form.Label>
-                  <Form.Control
-                    type="password"
-                    minLength={12}
-                    maxLength={72}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                  />
+                  <Form.Label>{mode === "reset" ? "Confirm new password" : "Confirm password"}</Form.Label>
+                  <div className="input-group">
+                    <Form.Control
+                      type={showPassword ? "text" : "password"}
+                      minLength={12}
+                      maxLength={72}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  {mode === "register" && password && confirmPassword && password !== confirmPassword && (
+                    <div className="small text-danger mt-1" role="status">Passwords do not match yet.</div>
+                  )}
                 </Form.Group>
               )}
 
