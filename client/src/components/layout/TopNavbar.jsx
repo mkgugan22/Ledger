@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Navbar, Container, Offcanvas } from "react-bootstrap";
-import { Landmark, Menu, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote, CreditCard } from "lucide-react";
+import { Landmark, Menu, BookOpen, PlusCircle, List, PiggyBank, TrendingUp, Sun, Moon, LogOut, Target, Sparkles, Banknote, CreditCard, Compass } from "lucide-react";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: BookOpen, end: true },
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { to: "/ledger-ai", label: "Ledger AI", icon: Sparkles },
 ];
 
-export default function TopNavbar({ user, theme, onThemeToggle, onLogout }) {
+export default function TopNavbar({ user, theme, onThemeToggle, onLogout, onStartTour }) {
   const [show, setShow] = useState(false);
   const location = useLocation();
   const current = NAV_ITEMS.find((n) =>
@@ -29,14 +29,19 @@ export default function TopNavbar({ user, theme, onThemeToggle, onLogout }) {
           <Landmark size={18} color="var(--lg-brass)" />
           <span className="font-serif fw-semibold">Ledger</span>
         </div>
-        <button
-          className="btn btn-sm d-flex align-items-center gap-2"
-          style={{ background: "rgba(247,242,228,0.1)", color: "#F7F2E4", border: "none" }}
-          onClick={() => setShow(true)}
-        >
-          {current?.label || "Menu"}
-          <Menu size={16} />
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          <button type="button" className="lg-mobile-tour-trigger" onClick={onStartTour} aria-label="Take the Ledger tour">
+            <Compass size={15} /> <span>Tour</span>
+          </button>
+          <button
+            className="btn btn-sm d-flex align-items-center gap-2"
+            style={{ background: "rgba(247,242,228,0.1)", color: "#F7F2E4", border: "none" }}
+            onClick={() => setShow(true)}
+          >
+            {current?.label || "Menu"}
+            <Menu size={16} />
+          </button>
+        </div>
       </Container>
 
       <Offcanvas show={show} onHide={() => setShow(false)} placement="end" className="lg-offcanvas">

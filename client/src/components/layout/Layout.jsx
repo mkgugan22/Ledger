@@ -16,6 +16,7 @@ export default function Layout({
   theme,
   onThemeToggle,
   onLogout,
+  onStartTour,
   tourOpen,
   onTourComplete,
 }) {
@@ -45,6 +46,7 @@ export default function Layout({
           theme={theme}
           onThemeToggle={onThemeToggle}
           onLogout={onLogout}
+          onStartTour={onStartTour}
         />
       </div>
 
@@ -63,6 +65,7 @@ export default function Layout({
             theme={theme}
             onThemeToggle={onThemeToggle}
             onLogout={onLogout}
+            onStartTour={onStartTour}
           />
         </div>
 

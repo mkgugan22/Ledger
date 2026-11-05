@@ -1,0 +1,48 @@
+.ledger-mascot {
+  --mascot-float-y: -5px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 176px;
+  height: 176px;
+  isolation: isolate;
+  animation: ledger-mascot-float 3.4s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+.ledger-mascot::before {
+  content: "";
+  position: absolute;
+  inset: 12% 8% 6%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(230,184,79,.2), rgba(51,139,116,.08) 48%, transparent 72%);
+  filter: blur(5px);
+}
+.ledger-mascot__art { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 5px 12px rgba(15,54,43,.12)); }
+.ledger-mascot__sparkle { transform-box: fill-box; transform-origin: center; animation: ledger-mascot-sparkle 2.8s ease-in-out infinite; }
+.ledger-mascot__sparkle--two { animation-delay: .8s; }
+.ledger-mascot--happy .ledger-mascot__art,
+.ledger-mascot--very-happy .ledger-mascot__art,
+.ledger-mascot--celebrate .ledger-mascot__art { animation: ledger-mascot-cheer .8s ease-in-out infinite alternate; }
+.ledger-mascot--angry { animation: ledger-mascot-stomp .22s ease-in-out 3; }
+.ledger-mascot--sad { --mascot-float-y: 1px; }
+.ledger-mascot--curious .ledger-mascot__art,
+.ledger-mascot--thinking .ledger-mascot__art { animation: ledger-mascot-curious 2s ease-in-out infinite; }
+
+@keyframes ledger-mascot-float { 0%,100% { translate: 0 0; } 50% { translate: 0 var(--mascot-float-y); } }
+@keyframes ledger-mascot-cheer { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-4px) rotate(1deg); } }
+@keyframes ledger-mascot-stomp { 0%,100% { rotate: 0; } 25% { rotate: -2deg; } 75% { rotate: 2deg; } }
+@keyframes ledger-mascot-curious { 0%,100% { transform: rotate(0); } 40% { transform: rotate(-3deg) translateY(-2px); } 75% { transform: rotate(2deg); } }
+@keyframes ledger-mascot-sparkle { 0%,100% { opacity: .35; scale: .8; } 50% { opacity: 1; scale: 1.25; } }
+@media (prefers-reduced-motion: reduce) { .ledger-mascot, .ledger-mascot *, .ledger-mascot::before { animation: none !important; } }
+
+.lg-login-companion { position: relative; display: grid; justify-items: center; align-content: end; min-height: 166px; margin: 0 auto .7rem; gap: .15rem; }
+.lg-login-companion .ledger-mascot { width: 156px; height: 144px; }
+.lg-login-message {
+  position: relative; z-index: 2; max-width: 255px; padding: .48rem .85rem;
+  border: 1px solid #D8E5D8; border-radius: 1rem 1rem 1rem .35rem;
+  background: linear-gradient(135deg,#FFFDF5,#F0F6EC); color: #315E50;
+  font-size: .76rem; font-weight: 650; line-height: 1.35;
+  box-shadow: 0 5px 16px rgba(33,82,66,.1);
+}
+.lg-tour-character .ledger-mascot { width: 112px; height: 112px; margin-bottom: -4px; }

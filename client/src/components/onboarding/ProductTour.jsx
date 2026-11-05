@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, Compass, X } from "lucide-react";
-import { LedgerCharacter } from "../../lib/motion/InteractiveLedgerCompanion.jsx";
+import LedgerMascot from "./LedgerMascot.jsx";
 import "./ProductTour.css";
 
 const STEPS = [
@@ -137,7 +137,7 @@ export default function ProductTour({ user, onComplete }) {
         <div className="lg-tour-content">
           <div className={`lg-tour-character ilc-mood-${step.mood}`} aria-hidden="true">
             <div className="lg-tour-speech">Hi{user?.name ? `, ${user.name.split(" ")[0]}` : ""}! Let me show you around.</div>
-            <LedgerCharacter mood={step.mood} />
+            <LedgerMascot mood={step.mood} />
           </div>
           <div className="lg-tour-copy">
             <div className="lg-tour-section">{step.section}</div>

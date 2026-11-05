@@ -10,8 +10,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from "../../lib/api.js";
-import { LedgerCharacter } from "../../lib/motion/InteractiveLedgerCompanion.jsx";
-import "../../lib/motion/InteractiveLedgerCompanionEnhanced.css";
+import LedgerMascot from "../onboarding/LedgerMascot.jsx";
 
 function scorePassword(value) {
   if (!value) return 0;
@@ -164,8 +163,8 @@ export default function Login({ onAuthenticated }) {
         <Card.Body className="p-4 p-md-5">
           <div className="text-center mb-4">
             <div className={`lg-login-companion ilc-mood-${companionMood}`} aria-live="polite">
-              <div className="ilc-speech"><span>{companionMessage}</span></div>
-              <LedgerCharacter mood={companionMood} />
+              <div className="lg-login-message" role="status">{companionMessage}</div>
+              <LedgerMascot mood={companionMood} />
             </div>
             <Landmark size={30} color="var(--lg-brass)" />
             <h1 className="font-serif mt-2 mb-1">Ledger</h1>
