@@ -133,6 +133,10 @@ export const fetchInvestments = async () => collection(await request("/investmen
 export const createInvestment = async (data) => withId(await request("/investments", { method: "POST", body: JSON.stringify(data) }));
 export const editInvestment = async (id, data) => withId(await request(`/investments/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 export const removeInvestment = (id) => request(`/investments/${id}`, { method: "DELETE" });
+// Monthly SIP consent: what is waiting for an answer, then confirm (adds the entries) or skip.
+export const fetchPendingAutoSip = async () => (await request("/investments/auto-sip/pending")).pending || [];
+export const confirmAutoSip = async (month) => (await request("/investments/auto-sip/confirm", { method: "POST", body: JSON.stringify({ month }) })).created.map(withId);
+export const skipAutoSip = (month) => request("/investments/auto-sip/skip", { method: "POST", body: JSON.stringify({ month }) });
 export const searchMarketFunds = (query) => request(`/market/search?q=${encodeURIComponent(query)}`);
 export const fetchMarketFund = (schemeCode) => request(`/market/${encodeURIComponent(schemeCode)}`);
 export const fetchBonds = async () => collection(await request("/bonds")).map(withId);

@@ -6,12 +6,22 @@ import {
   renewAutoSipSchedulerLock,
   releaseAutoSipSchedulerLock,
 } from "./autoSipLock.js";
+import { buildHolidaySet } from "./autoSipHolidays.js";
 
 // Monthly auto-SIP
 // ----------------
-// On the 10th of every month (India time) add one SIP entry of ₹1000 for each of the
-// user's funds EXCEPT the LIC MF Consumption fund. If the 10th is a Saturday or Sunday
-// the entries are added on the following Monday instead (and dated that Monday).
+// On the 10th of every month (India time) one SIP entry of ₹1000 is due for each of the
+// user's first three SIP funds (the LIC MF Consumption fund is excluded). If the 10th is
+// a Saturday, a Sunday or an Indian market holiday, the SIP moves to the next working day
+// and the entries are dated that day.
+//
+// Consent: by default (AUTO_SIP_REQUIRE_CONSENT is not "false") nothing is written on its
+// own. Once the run date has arrived, the first time the user opens the app it asks
+// "I'm adding ₹1000 to these funds - OK?" (getPendingAutoSip). Confirming writes the
+// entries (confirmAutoSip); skipping records the month as handled (skipAutoSip). Until the
+// user answers, the month stays pending, so a missed day is simply asked about next time.
+// Setting AUTO_SIP_REQUIRE_CONSENT=false restores the old silent behaviour (scheduler +
+// catch-up), which ensureAutoSipForUser / runAutoSipForAllUsers still implement.
 //
 // Safe by construction:
 //  * Idempotent  - a unique (user, fund, autoSipMonth) index plus an upsert means
@@ -28,9 +38,12 @@ import {
 // Optional environment overrides (all have working defaults):
 //   AUTO_SIP_ENABLED=false            turn the feature off
 //   AUTO_SIP_AMOUNT=1000              rupees per fund per month
-//   AUTO_SIP_DAY=10                   day of month (1-28); weekends roll to Monday
+//   AUTO_SIP_DAY=10                   day of month (1-28); weekends/holidays roll forward
 //   AUTO_SIP_START_MONTH=2026-11      first month to generate
 //   AUTO_SIP_EXCLUDED_FUNDS=LIC MF Consumption   comma-separated, case-insensitive match
+//   AUTO_SIP_MAX_FUNDS=3              only the user's first N funds (oldest first) get the SIP
+//   AUTO_SIP_HOLIDAYS=2027-01-26,...  extra non-working days on top of the built-in list
+//   AUTO_SIP_REQUIRE_CONSENT=false    add entries silently instead of asking the user first
 
 const TIMEZONE = "Asia/Kolkata";
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -38,6 +51,8 @@ const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000; // hourly
 const INELIGIBLE_RECHECK_MS = 10 * 60 * 1000;
 const DEFAULT_EXCLUDED = "LIC MF Consumption";
 const DEFAULT_START_MONTH = "2026-11";
+const DEFAULT_MAX_FUNDS = 3;
+const NO_HOLIDAYS = new Set();
 export const AUTO_SIP_SOURCE = "Auto SIP (monthly)";
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -50,6 +65,7 @@ function getConfig() {
   const amount = Number(process.env.AUTO_SIP_AMOUNT);
   const day = Number(process.env.AUTO_SIP_DAY);
   const startMonth = process.env.AUTO_SIP_START_MONTH;
+  const maxFunds = Number(process.env.AUTO_SIP_MAX_FUNDS);
 
   const excludedNames = (process.env.AUTO_SIP_EXCLUDED_FUNDS || DEFAULT_EXCLUDED)
     .split(",")
@@ -58,8 +74,11 @@ function getConfig() {
 
   return {
     enabled,
+    requireConsent: process.env.AUTO_SIP_REQUIRE_CONSENT !== "false",
     amount: Number.isFinite(amount) && amount > 0 ? amount : 1000,
     day: Number.isInteger(day) && day >= 1 && day <= 28 ? day : 10,
+    maxFunds: Number.isInteger(maxFunds) && maxFunds >= 1 ? maxFunds : DEFAULT_MAX_FUNDS,
+    holidays: buildHolidaySet(process.env.AUTO_SIP_HOLIDAYS),
     startMonth: MONTH_RE.test(startMonth || "") ? startMonth : DEFAULT_START_MONTH,
     // "LIC MF Consumption" -> /LIC\s+MF\s+Consumption/i (tolerates extra spaces and
     // longer names such as "LIC MF Consumption Fund - Direct - Growth").
@@ -73,24 +92,29 @@ export function todayInZone(now = new Date(), timeZone = TIMEZONE) {
 }
 
 // The date the entries are actually added for a "YYYY-MM" month: the configured day,
-// moved forward to Monday when it lands on a Saturday (+2 days) or Sunday (+1 day).
-// The weekday of a calendar date is the same everywhere, so UTC is safe here.
-export function getRunDate(month, day = 10) {
+// moved forward one day at a time while it is a Saturday, a Sunday or one of `holidays`
+// (a Set of "YYYY-MM-DD"). So a Saturday 10th becomes Monday the 12th, and a holiday
+// Tuesday 10th becomes Wednesday the 11th. With no holidays this is the original
+// weekend-only rule. The weekday of a calendar date is the same everywhere, so UTC is safe.
+export function getRunDate(month, day = 10, holidays = NO_HOLIDAYS) {
   const [year, monthNumber] = month.split("-").map(Number);
   const date = new Date(Date.UTC(year, monthNumber - 1, day));
-  const weekday = date.getUTCDay(); // 0 = Sunday ... 6 = Saturday
-  if (weekday === 6) date.setUTCDate(date.getUTCDate() + 2);
-  else if (weekday === 0) date.setUTCDate(date.getUTCDate() + 1);
+  for (let i = 0; i < 14; i += 1) {
+    const weekday = date.getUTCDay(); // 0 = Sunday ... 6 = Saturday
+    const iso = date.toISOString().slice(0, 10);
+    if (weekday !== 0 && weekday !== 6 && !holidays.has(iso)) return iso;
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
   return date.toISOString().slice(0, 10);
 }
 
 // Every "YYYY-MM" from startMonth up to today whose run date has arrived.
-export function getDueMonths(today, { startMonth, day }) {
+export function getDueMonths(today, { startMonth, day, holidays = NO_HOLIDAYS }) {
   const due = [];
   let [year, month] = startMonth.split("-").map(Number);
   for (let i = 0; i < 240; i += 1) {
     const key = `${year}-${String(month).padStart(2, "0")}`;
-    if (getRunDate(key, day) > today) break;
+    if (getRunDate(key, day, holidays) > today) break;
     due.push(key);
     month += 1;
     if (month > 12) { month = 1; year += 1; }
@@ -100,18 +124,24 @@ export function getDueMonths(today, { startMonth, day }) {
 
 // The user's distinct funds (with their asset class), split into the excluded
 // fund(s) and the ones that should receive the monthly SIP.
+// Only the user's first `cfg.maxFunds` funds (oldest first, excluded fund not counted) get
+// the SIP, so a fund added later never starts receiving it on its own.
 async function loadTargets(userId, cfg) {
   const rows = await Investment.find({ user: userId }).select("fund assetClass date").sort({ date: 1 }).lean();
   const funds = new Map();
   for (const row of rows) {
-    if (row.fund) funds.set(row.fund, row.assetClass || "Equity");
+    if (!row.fund) continue;
+    const firstDate = funds.get(row.fund)?.firstDate ?? String(row.date || "");
+    funds.set(row.fund, { assetClass: row.assetClass || "Equity", firstDate });
   }
   const isExcluded = (name) => cfg.excluded.some((re) => re.test(name));
   const names = [...funds.keys()];
-  return {
-    eligible: names.some(isExcluded),
-    targets: names.filter((name) => !isExcluded(name)).map((name) => [name, funds.get(name)]),
-  };
+  const targets = names
+    .filter((name) => !isExcluded(name))
+    .sort((a, b) => funds.get(a).firstDate.localeCompare(funds.get(b).firstDate) || a.localeCompare(b))
+    .slice(0, cfg.maxFunds)
+    .map((name) => [name, funds.get(name).assetClass]);
+  return { eligible: names.some(isExcluded), targets };
 }
 
 // Funds (normalised names) where the user already entered the SIP amount by hand
@@ -193,9 +223,97 @@ async function retireEarlyDuplicates(userId, cfg) {
 // Cheap in-process memo so repeated page loads don't re-query once a user is up to date.
 const userMemo = new Map();
 
+// ---------------------------------------------------------------------------
+// Consent flow: the app asks first, then writes.
+// ---------------------------------------------------------------------------
+
+async function finishedMonths(userId, months) {
+  const runs = await AutoSipRun.find({ user: userId, month: { $in: months } }).select("month").lean();
+  return new Set(runs.map((run) => run.month));
+}
+
+// Months whose run date has arrived and that the user has not yet answered, each with the
+// funds that would receive the SIP. A month where every fund already has that month's SIP
+// entered by hand is closed here (there is nothing to ask).
+async function listPendingMonths(userId, cfg, now) {
+  await retireEarlyDuplicates(userId, cfg);
+
+  const months = getDueMonths(todayInZone(now), cfg);
+  if (!months.length) return [];
+
+  const finished = await finishedMonths(userId, months);
+  const open = months.filter((month) => !finished.has(month));
+  if (!open.length) return [];
+
+  const { eligible, targets } = await loadTargets(userId, cfg);
+  if (!eligible || !targets.length) return [];
+
+  const pending = [];
+  for (const month of open) {
+    const alreadyEntered = await manualFundsForMonth(userId, month, cfg);
+    const funds = targets.filter(([fund]) => !alreadyEntered.has(normalizeName(fund)));
+    if (!funds.length) {
+      await markMonthDone(userId, month, []);
+      continue;
+    }
+    pending.push({ month, runDate: getRunDate(month, cfg.day, cfg.holidays), amount: cfg.amount, funds });
+  }
+  return pending;
+}
+
+// What the app should ask about right now: [] when nothing is due (or consent mode is off).
+export async function getPendingAutoSip(userId, now = new Date()) {
+  const cfg = getConfig();
+  if (!cfg.enabled || !cfg.requireConsent) return [];
+  const pending = await listPendingMonths(userId, cfg, now);
+  return pending.map(({ month, runDate, amount, funds }) => ({
+    month,
+    runDate,
+    amount,
+    total: amount * funds.length,
+    funds: funds.map(([fund, assetClass]) => ({ fund, assetClass })),
+  }));
+}
+
+// The user said yes. The funds are recomputed here, never taken from the client, and the
+// unique index + upsert make a double click or a second tab harmless.
+export async function confirmAutoSip(userId, month, now = new Date()) {
+  const cfg = getConfig();
+  if (!cfg.enabled || !cfg.requireConsent) return { ok: false, created: [] };
+
+  const item = (await listPendingMonths(userId, cfg, now)).find((entry) => entry.month === month);
+  if (!item) return { ok: false, created: [] };
+
+  await Promise.all([Investment.init(), AutoSipRun.init()]);
+  for (const [fund, assetClass] of item.funds) {
+    await insertSipEntry(userId, month, fund, assetClass, item.runDate, cfg);
+  }
+  const names = item.funds.map(([fund]) => fund);
+  await markMonthDone(userId, month, names);
+
+  const created = await Investment.find({ user: userId, autoSipMonth: month, fund: { $in: names } }).lean();
+  return { ok: true, created };
+}
+
+// The user said no for this month: remember it so they are not asked again.
+export async function skipAutoSip(userId, month, now = new Date()) {
+  const cfg = getConfig();
+  if (!cfg.enabled || !cfg.requireConsent) return { ok: false };
+
+  const item = (await listPendingMonths(userId, cfg, now)).find((entry) => entry.month === month);
+  if (!item) return { ok: false };
+
+  await markMonthDone(userId, month, []);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Silent mode (AUTO_SIP_REQUIRE_CONSENT=false): scheduler + catch-up write directly.
+// ---------------------------------------------------------------------------
+
 export async function ensureAutoSipForUser(userId, now = new Date()) {
   const cfg = getConfig();
-  if (!cfg.enabled) return { created: 0 };
+  if (!cfg.enabled || cfg.requireConsent) return { created: 0 };
 
   const removed = await retireEarlyDuplicates(userId, cfg);
 
@@ -227,7 +345,7 @@ export async function ensureAutoSipForUser(userId, now = new Date()) {
 
   let created = 0;
   for (const month of pending) {
-    const runDate = getRunDate(month, cfg.day);
+    const runDate = getRunDate(month, cfg.day, cfg.holidays);
     const alreadyEntered = await manualFundsForMonth(userId, month, cfg);
     const funds = [];
     for (const [fund, assetClass] of targets) {
@@ -246,7 +364,7 @@ const LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1000;
 
 export async function runAutoSipForAllUsers(now = new Date()) {
   const cfg = getConfig();
-  if (!cfg.enabled || running) return { users: 0, created: 0, removed: 0 };
+  if (!cfg.enabled || cfg.requireConsent || running) return { users: 0, created: 0, removed: 0 };
 
   running = true;
   const lockOwnerId = randomUUID();
@@ -294,10 +412,12 @@ export async function runAutoSipForAllUsers(now = new Date()) {
   }
 }
 
-// Runs once at startup (catches up anything missed while the server was down or
-// asleep) and then every hour. Returns a function that stops the timer.
+// Silent mode only: runs once at startup (catches up anything missed while the server was
+// down or asleep) and then every hour. In consent mode nothing is written without the user's
+// OK, so there is no timer. Returns a function that stops the timer.
 export function startAutoSipScheduler() {
-  if (!getConfig().enabled) return () => {};
+  const cfg = getConfig();
+  if (!cfg.enabled || cfg.requireConsent) return () => {};
 
   const tick = () =>
     runAutoSipForAllUsers()

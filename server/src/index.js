@@ -18,8 +18,9 @@ const server = await connectDB()
     process.exit(1);
   });
 
-// Monthly auto-SIP (10th of each month, India time). Runs once now to catch up
-// anything missed while the server was asleep, then hourly. See services/autoSip.js.
+// Monthly auto-SIP (10th of each month, India time; rolls past weekends/holidays). By default
+// the app asks the user before adding anything, so this timer only runs when
+// AUTO_SIP_REQUIRE_CONSENT=false. See services/autoSip.js.
 const stopAutoSip = startAutoSipScheduler();
 
 // Drain in-flight HTTP requests before closing MongoDB. This is important

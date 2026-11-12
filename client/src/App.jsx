@@ -15,6 +15,7 @@ const Login = lazy(() => import("./components/auth/Login.jsx"));
 const SipGrowth = lazy(() => import("./components/investments/SipGrowth.jsx"));
 const Bonds = lazy(() => import("./components/bonds/Bonds.jsx"));
 const Obligations = lazy(() => import("./components/obligations/Obligations.jsx"));
+const AutoSipConsent = lazy(() => import("./components/investments/AutoSipConsent.jsx"));
 import {
   createTransaction,
   editTransaction,
@@ -346,6 +347,15 @@ export default function App() {
   };
 
   const addInvestmentItem = useCallback((item) => setInvestments((prev) => [...prev, item]), []);
+  // Entries the user just approved in the monthly SIP prompt; ids already on screen are not added twice.
+  const addAutoSipItems = useCallback((items, pending) => {
+    setInvestments((prev) => {
+      const have = new Set(prev.map((it) => it.id || it._id));
+      return [...prev, ...items.filter((it) => !have.has(it.id || it._id))];
+    });
+    showToast(`Added ₹${(pending?.total ?? 0).toLocaleString("en-IN")} of SIP across ${items.length} fund${items.length === 1 ? "" : "s"}.`, "success");
+  }, [showToast]);
+  const reloadInvestments = useCallback(() => { fetchInvestments().then(setInvestments).catch(() => {}); }, []);
   const updateInvestmentItem = useCallback((item) => setInvestments((prev) => prev.map((it) => ((it.id || it._id) === (item.id || item._id) ? item : it))), []);
   const addBondItem = useCallback((item) => setBonds((prev) => [...prev, item]), []);
   const updateBondItem = useCallback((item) => setBonds((prev) => prev.map((it) => ((it.id || it._id) === (item.id || item._id) ? item : it))), []);
@@ -373,5 +383,10 @@ export default function App() {
       </Route>
     </Routes>
     </Suspense>
+    {user && loaded && (
+      <Suspense fallback={null}>
+        <AutoSipConsent key={String(user.id ?? user._id ?? user.email ?? "user")} onAdded={addAutoSipItems} onReload={reloadInvestments} />
+      </Suspense>
+    )}
   </BrowserRouter>;
 }
