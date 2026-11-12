@@ -107,6 +107,9 @@ export const investmentSchema = z.object({
 // PUT allows partial updates.
 export const investmentUpdateSchema = investmentSchema.partial();
 
+// Body of POST /investments/auto-sip/confirm and /skip: only the month being answered.
+export const autoSipMonthSchema = z.object({ month: monthSchema });
+
 export const bondSchema = z.object({
   issuer: z.string().trim().min(1, "Issuer is required."),
   bondType: z.enum(["Government", "Corporate", "Municipal", "PSU", "Other"]).optional().default("Government"),

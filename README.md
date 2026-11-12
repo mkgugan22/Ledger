@@ -238,17 +238,24 @@ Run these from the repository root:
 
 ### Optional monthly Auto-SIP records
 
-Auto-SIP is enabled by default outside test mode. It runs on API startup and hourly, uses India time (`Asia/Kolkata`), catches up after downtime, and is idempotent. A run creates one investment ledger record for each eligible fund per due month. A matching manual SIP/additional entry for the configured amount prevents a duplicate. The service only processes users who have at least one configured excluded fund; excluded fund names are not themselves auto-invested.
+Auto-SIP is enabled by default outside test mode and uses India time (`Asia/Kolkata`). The SIP date is the 10th of the month; if that is a Saturday, a Sunday or an Indian market holiday, it moves to the next working day and the entries are dated that day. Only the user's first three funds (oldest first, excluding the configured excluded fund) receive the SIP. A matching manual SIP/additional entry for the configured amount prevents a duplicate. The service only processes users who have at least one configured excluded fund; excluded fund names are not themselves auto-invested.
+
+**Consent first.** By default nothing is written on its own. The first time the user opens the app on or after the SIP date, a prompt lists the funds and the total ("I'm adding ₹1,000 to each…"); **Add** creates the entries, **Skip this month** closes that month without adding, and **Not now** asks again the next time the app opens. A missed date is never lost: the question simply waits, and the entries are still dated the SIP date. The API exposes this as `GET /api/investments/auto-sip/pending`, `POST /api/investments/auto-sip/confirm` and `POST /api/investments/auto-sip/skip` (body `{ "month": "YYYY-MM" }`). Set `AUTO_SIP_REQUIRE_CONSENT=false` to restore the earlier behaviour (silent entries from a startup/hourly scheduler and list-time catch-up, idempotent, unique user/fund/month indexes).
+
+The built-in holiday list (`server/src/services/autoSipHolidays.js`) is the NSE 2026 equity trading-holiday calendar. NSE publishes next year's list in December: add those dates to the file or to `AUTO_SIP_HOLIDAYS`, otherwise only weekends are skipped for that year.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AUTO_SIP_ENABLED` | Enabled outside tests | Set to `false` to disable; set to `true` to explicitly enable. |
 | `AUTO_SIP_AMOUNT` | `1000` | Rupees recorded per eligible fund per month. |
-| `AUTO_SIP_DAY` | `10` | Day of month, from 1 to 28. If it falls on a weekend, the run date moves to Monday. |
+| `AUTO_SIP_DAY` | `10` | Day of month, from 1 to 28. If it falls on a weekend or a holiday, the run date moves to the next working day. |
+| `AUTO_SIP_MAX_FUNDS` | `3` | Only the user's first N funds (oldest first, excluded fund not counted) receive the SIP. |
+| `AUTO_SIP_HOLIDAYS` | _(none)_ | Extra non-working days, comma-separated `YYYY-MM-DD`, added to the built-in 2026 NSE list. |
+| `AUTO_SIP_REQUIRE_CONSENT` | `true` | Ask in the app before adding entries. Set to `false` for silent scheduler-created entries. |
 | `AUTO_SIP_START_MONTH` | `2026-11` | First eligible month in `YYYY-MM` format. Earlier months are not generated. |
 | `AUTO_SIP_EXCLUDED_FUNDS` | `LIC MF Consumption` | Comma-separated fund names that qualify a user for the scheduler and are excluded from auto-created records. Matching ignores case and tolerates whitespace differences. |
 
-The feature is a record-keeping convenience, not an investment order. Multiple API instances coordinate the hourly scan through a MongoDB-backed lease, while unique user/fund/month indexes remain the final duplicate-prevention guard. Per-fund schedules with independent amounts or dates are not part of the current implementation.
+The feature is a record-keeping convenience, not an investment order. In silent mode, multiple API instances coordinate the hourly scan through a MongoDB-backed lease; in every mode the unique user/fund/month indexes remain the final duplicate-prevention guard. Per-fund schedules with independent amounts or dates are not part of the current implementation.
 
 ## API overview
 
