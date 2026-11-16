@@ -8,6 +8,12 @@ import { clearCollections, startTestDB, stopTestDB } from "./setup.js";
 import User from "../src/models/User.js";
 import Transaction from "../src/models/Transaction.js";
 import AiChatShare from "../src/models/AiChatShare.js";
+import Valuation from "../src/models/Valuation.js";
+import Investment from "../src/models/Investment.js";
+import Bond from "../src/models/Bond.js";
+import Budget from "../src/models/Budget.js";
+import Debt from "../src/models/Debt.js";
+import Bill from "../src/models/Bill.js";
 
 const app = createApp();
 const entry = { mode: "Needs", type: "Groceries", amount: 1250, month: "2026-08", note: "weekly" };
@@ -56,6 +62,47 @@ describe("authentication", () => {
 });
 
 describe("ledger workflows", () => {
+  it("returns all bootstrap collections scoped to the authenticated user", async () => {
+    const first = await signUp();
+    const firstSession = await first.get("/api/auth/me").expect(200);
+    const firstUserId = firstSession.body.user.id;
+
+    const second = request.agent(app);
+    await second.post("/api/auth/register").send({
+      name: "Other User",
+      email: "other@example.com",
+      password: "anotherpassword123",
+    }).expect(201);
+    const secondSession = await second.get("/api/auth/me").expect(200);
+    const secondUserId = secondSession.body.user.id;
+
+    await Promise.all([
+      Transaction.create({ ...entry, user: firstUserId }),
+      Valuation.create({ user: firstUserId, month: "2026-08", instrument: "Gold", value: 100 }),
+      Investment.create({ user: firstUserId, fund: "Index Fund", invested: 100, currentValue: 110, date: "2026-08-01" }),
+      Bond.create({ user: firstUserId, issuer: "Government", faceValue: 1000, currentValue: 1010, date: "2026-08-01" }),
+      Budget.create({ user: firstUserId, month: "2026-08", mode: "Needs", type: "Rent", plannedAmount: 500 }),
+      Debt.create({ user: firstUserId, name: "Personal loan", originalAmount: 1000, outstandingAmount: 500 }),
+      Bill.create({ user: firstUserId, name: "Internet", amount: 900, dueDate: "2026-08-15" }),
+      Transaction.create({ ...entry, user: secondUserId, type: "Private to second user" }),
+    ]);
+
+    await request(app).get("/api/bootstrap").expect(401);
+
+    const firstData = await first.get("/api/bootstrap").expect(200);
+    expect(Object.keys(firstData.body).sort()).toEqual([
+      "bills", "bonds", "budgets", "debts", "investments", "transactions", "valuations",
+    ]);
+    for (const collectionName of Object.keys(firstData.body)) {
+      expect(firstData.body[collectionName]).toHaveLength(1);
+    }
+
+    const secondData = await second.get("/api/bootstrap").expect(200);
+    expect(secondData.body.transactions).toHaveLength(1);
+    expect(secondData.body.transactions[0].type).toBe("Private to second user");
+    expect(secondData.body.valuations).toHaveLength(0);
+  });
+
   it("validates, creates, filters, updates, and deletes a transaction", async () => {
     const active = await signUp();
     await active.post("/api/transactions").send({ ...entry, month: "2026-99" }).expect(400);

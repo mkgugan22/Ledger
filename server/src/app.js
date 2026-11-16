@@ -14,6 +14,7 @@ import marketRouter from "./routes/market.js";
 import budgetsRouter from "./routes/budgets.js";
 import debtsRouter from "./routes/debts.js";
 import billsRouter from "./routes/bills.js";
+import bootstrapRouter from "./routes/bootstrap.js";
 import receiptsRouter from "./routes/receipts.js";
 import documentsRouter from "./routes/documents.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -114,6 +115,7 @@ export function createApp() {
   // Placed after requireAuth so it can key by req.userId instead of IP —
   // see the comment in middleware/rateLimit.js.
   app.use(apiRateLimit);
+  app.use("/api/bootstrap", bootstrapRouter);
   app.use("/api/market", marketRouter);
   app.use("/api/transactions", transactionsRouter);
   app.use("/api/transactions/:id/receipts", receiptsRouter);
