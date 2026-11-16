@@ -40,6 +40,7 @@ import {
   editDebt,
   removeDebt,
   fetchBills,
+  fetchBootstrap,
   createBill,
   editBill,
   removeBill,
@@ -116,16 +117,31 @@ export default function App() {
     if (!user) return;
     (async () => {
       try {
-        const [tx, val, inv, bnd, bud, debtItems, billItems] = await Promise.all([
-          fetchTransactions(),
-          fetchValuations(),
-          fetchInvestments().catch(() => []),
-          fetchBondsWithRetry(),
-          fetchBudgets().catch(() => []),
-          fetchDebts().catch(() => []),
-          fetchBills().catch(() => []),
-        ]);
-        setTransactions(tx); setValuations(val); setInvestments(inv); setBonds(bnd); setBudgets(bud); setDebts(debtItems); setBills(billItems);
+        let data;
+        try {
+          // Consolidate the initial dashboard read into one API round trip.
+          // Keep the legacy path for older API deployments and temporary failures.
+          data = await fetchBootstrap();
+        } catch (bootstrapError) {
+          if (bootstrapError.status === 401) throw bootstrapError;
+          const [tx, val, inv, bnd, bud, debtItems, billItems] = await Promise.all([
+            fetchTransactions(),
+            fetchValuations(),
+            fetchInvestments().catch(() => []),
+            fetchBondsWithRetry(),
+            fetchBudgets().catch(() => []),
+            fetchDebts().catch(() => []),
+            fetchBills().catch(() => []),
+          ]);
+          data = { transactions: tx, valuations: val, investments: inv, bonds: bnd, budgets: bud, debts: debtItems, bills: billItems };
+        }
+        setTransactions(data.transactions);
+        setValuations(data.valuations);
+        setInvestments(data.investments);
+        setBonds(data.bonds);
+        setBudgets(data.budgets);
+        setDebts(data.debts);
+        setBills(data.bills);
         setApiError("");
       } catch (err) {
         setApiError(`Couldn't load your saved data (${err.message}). Refresh the page after the API is available.`);

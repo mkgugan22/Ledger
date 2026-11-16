@@ -210,7 +210,7 @@ Run these from the repository root:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `VITE_API_URL` | `http://localhost:5000/api` | Base URL for the API. This is bundled into the public client, so it must never contain secrets. |
+| `VITE_API_URL` | `http://localhost:5000/api` locally | Base URL for non-Netlify hosts. Netlify-hosted builds use the same-origin `/api` proxy automatically; this variable is public and must never contain secrets. |
 
 ### Server
 
@@ -265,6 +265,7 @@ Application routes are prefixed with `/api`. Unless noted as public, application
 | --- | --- | --- |
 | Health | `GET /health`, `GET /ready` | Process liveness and MongoDB readiness |
 | Authentication | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`, `POST /auth/verify-email`, `POST /auth/resend-verification`, `POST /auth/forgot-password`, `POST /auth/reset-password` | Register, sign in, restore session, sign out, verify email, and recover password |
+| Bootstrap | `GET /bootstrap` | Return the seven user-scoped collections used by the initial application shell in one request; existing list endpoints remain available |
 | Transactions | `GET/POST /transactions`, `PUT/DELETE /transactions/:id` | List, create, edit, and delete ledger entries |
 | Recurring transactions | `POST /transactions/generate-recurring` | Generate entries from recurring templates for a requested month |
 | CSV | `POST /transactions/import`, `GET /transactions/export` | Import or download transactions |
@@ -305,8 +306,8 @@ The repository supports a static client plus a Node API:
 
 1. Build `client/` with `npm run build:client` and publish `client/dist`.
 2. Run `server/` on a Node-capable host with MongoDB access.
-3. Set the client's `VITE_API_URL` to the public API base URL, ending in `/api`.
-4. Set the API's `CLIENT_ORIGIN` to the exact deployed client origin (scheme and hostname; no path).
+3. For Netlify, `netlify.toml` proxies `/api/*` to the existing Render API, and the client automatically uses that same-origin path on `*.netlify.app`. For other hosts (including the optional Render static site), set `VITE_API_URL` to the API base URL ending in `/api`.
+4. Keep the API's `CLIENT_ORIGIN` allowlist aligned with the frontend origin (scheme and hostname; no path). The production Netlify origin is listed in `render.yaml`; add a preview origin only when testing authenticated Deploy Previews.
 5. Configure the MongoDB URI and JWT secret in the API host's secret/environment settings.
 
 `netlify.toml` configures the client build and single-page-app fallback for Netlify. `render.yaml` defines a Render API service and an optional Render static client service. Choose the intended frontend host and make `VITE_API_URL` and `CLIENT_ORIGIN` agree with the actual deployed URLs before deployment. Do not configure both frontend services to serve production traffic accidentally.
@@ -317,7 +318,7 @@ The repository supports a static client plus a Node API:
 - The API issues a seven-day JWT in an HTTP-only cookie. Password-reset tokens are stored only as SHA-256 hashes, expire after one hour, are single-use, and increment `tokenVersion` so existing sessions are invalidated.
 - Email verification is opt-in (`REQUIRE_EMAIL_VERIFICATION=true`) to preserve current sign-up behavior until email delivery is configured. New verification tokens are hashed and expire after 24 hours; existing accounts default to verified.
 - Authentication email uses Resend. Set `RESEND_API_KEY`, a verified `AUTH_EMAIL_FROM`, and `AUTH_PUBLIC_URL` on the server. Verify end-to-end delivery before enabling mandatory verification.
-- Production cookies use `Secure` and `SameSite=None` for the separate client/API origins. State-changing browser requests are checked against `CLIENT_ORIGIN`.
+- Production cookies use `Secure` and `SameSite=None` for compatibility with the optional separate-origin client. The primary Netlify site now calls the API through a same-origin `/api` proxy, avoiding third-party-cookie treatment in the browser. State-changing browser requests remain checked against `CLIENT_ORIGIN`.
 - Logout increments the user's token version so previously issued tokens are rejected.
 - Authenticated records are scoped to the signed-in user. Shared Ledger AI snapshots expose only their selected transcript, are read-only, use an unguessable token, and expire after seven days.
 - Helmet, CORS allowlisting, input validation, and rate limits protect API routes. Authentication attempts, AI requests, shared-chat reads, and authenticated API traffic have separate limits.

@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+// Netlify serves the UI and proxies /api to Render. A relative URL keeps
+// the browser request same-site, so session cookies are first-party.
+// Other hosts retain their configured API URL for local and Render-client use.
+const isNetlifyHost = typeof window !== "undefined" && window.location.hostname.endsWith(".netlify.app");
+const API_URL = isNetlifyHost ? "/api" : import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // `timeoutMs` is an optional, opt-in addition to the normal fetch options.
 // When omitted (every existing call site keeps working exactly as before —
@@ -125,6 +129,20 @@ export const resetPassword = async (token, password) => {
   window.dispatchEvent(new Event("ledger:session-expired"));
   return result;
 };
+// Fetch all collections needed by the initial app shell in one request.
+// withId keeps the item shape expected by existing page components.
+export async function fetchBootstrap() {
+  const data = await request("/bootstrap");
+  return {
+    transactions: collection(data.transactions).map(withId),
+    valuations: collection(data.valuations).map(withId),
+    investments: collection(data.investments).map(withId),
+    bonds: collection(data.bonds).map(withId),
+    budgets: collection(data.budgets).map(withId),
+    debts: collection(data.debts).map(withId),
+    bills: collection(data.bills).map(withId),
+  };
+}
 export const fetchSession = () => request("/auth/me");
 export const completeProductTour = () => request("/auth/tour/complete", { method: "POST" });
 export const logout = () => request("/auth/logout", { method: "POST" });
